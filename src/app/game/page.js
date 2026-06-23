@@ -242,7 +242,7 @@ function GameContent() {
               onCardClick={(card) => {
                 if (gameState.phase === 'combat_attackers' && gameState.activePlayerId === playerId) {
                   toggleAttacker(card.instanceId);
-                } else if (card.types && card.types.includes('Land')) {
+                } else if (card.type_line && card.type_line.includes('Land')) {
                   tapLand(card.instanceId);
                 }
               }}
@@ -253,8 +253,10 @@ function GameContent() {
             <Hand 
               cards={playerState.hand} 
               selectedCardId={selectedCard}
-              onCardSelect={(id) => setSelectedCard(id)}
-              onCardPlay={() => selectedCard && playCard(selectedCard)}
+              onCardClick={(card) => {
+                setSelectedCard(card.instanceId);
+                playCard(card.instanceId);
+              }}
             />
           </div>
         </div>
@@ -267,6 +269,9 @@ function GameContent() {
       </div>
 
       <div className={styles.rightSidebar}>
+        <div className={styles.sidebarSection}>
+          <h2 style={{color: 'white', textAlign: 'center'}}>Turn {gameState.turn || 1}</h2>
+        </div>
         <div className={styles.sidebarSection}>
           <LifeCounter life={playerState.life} name="You" />
         </div>
