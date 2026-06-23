@@ -11,25 +11,104 @@ export function parseCardData(rawCard) {
   card.engineMetadata = {
     entersTapped: false,
     manaAbilities: [],
-    surveilWhenETB: 0,
     isFetchLand: false,
-    fetchTypes: []
+    fetchTypes: [],
+    etbEffects: [],    // Stores effects that happen when a permanent lands
+    spellEffects: []   // Stores effects that happen when an instant/sorcery resolves
   };
 
   // 1. Enters Tapped
-  // Matches "enters the battlefield tapped"
   if (/enters the battlefield tapped/i.test(oracle)) {
     card.engineMetadata.entersTapped = true;
   }
-  
-  // 2. Surveil triggers (e.g., "Surveil 1")
-  const surveilMatch = oracle.match(/Surveil (\d+)/i);
-  if (surveilMatch) {
-    card.engineMetadata.surveilWhenETB = parseInt(surveilMatch[1], 10);
+
+  // 2. Generic ETB Parser
+  // Looks for "enters the battlefield, [do something]." or "enters the battlefield. [Do something]"
+  const etbRegex = /enters the battlefield[,.]\s*(.*?)(?:\.|$)/i;
+  const etbMatch = oracle.match(etbRegex);
+  if (etbMatch) {
+    const effectText = etbMatch[1];
+    
+    // Parse Draw Card
+    if (/draw a card/i.test(effectText)) {
+      card.engineMetadata.etbEffects.push({ type: 'DRAW', amount: 1 });
+    }
+    
+    // Parse Gain Life
+    const lifeMatch = effectText.match(/gain (\d+) life/i);
+    if (lifeMatch) {
+      card.engineMetadata.etbEffects.push({ type: 'GAIN_LIFE', amount: parseInt(lifeMatch[1], 10) });
+    }
+
+    // New code
+    // Parse Surveil
+    const surveilMatch = effectText.match(/surveil (\d+)/i);
+    if (surveilMatch) {
+      card.engineMetadata.etbEffects.push({ type: 'SURVEIL', amount: parseInt(surveilMatch[1], 10) });
+    }
+
+    // Parse Mill
+    const millMatch = effectText.match(/mills? (\d+) cards?/i);
+    if (millMatch) {
+      card.engineMetadata.etbEffects.push({ type: 'MILL', amount: parseInt(millMatch[1], 10) });
+    }
+
+    // Parse Scry
+    const scryMatch = effectText.match(/scry (\d+)/i);
+    if (scryMatch) {
+      card.engineMetadata.etbEffects.push({ type: 'SCRY', amount: parseInt(scryMatch[1], 10) });
+    }
   }
 
-  // 3. Mana Abilities
-  // Detects {T}: Add {W}, {U}, etc.
+  // 3. Instant & Sorcery Parser
+  if (typeLine.includes('Instant') || typeLine.includes('Sorcery')) {
+    
+    // Parse Damage (e.g., "Lightning Bolt deals 3 damage to any target")
+    const damageMatch = oracle.match(/deals (\d+) damage to (any target|target creature|target player)/i);
+    if (damageMatch) {
+      card.engineMetadata.spellEffects.push({ 
+        type: 'DEAL_DAMAGE', 
+        amount: parseInt(damageMatch[1], 10),
+        targetType: damageMatch[2].toLowerCase()
+      });
+    }
+
+    // Parse Draw Cards (e.g., "Draw two cards", "Draw a card")
+    if (/draw a card/i.test(oracle)) {
+      card.engineMetadata.spellEffects.push({ type: 'DRAW', amount: 1 });
+    } else {
+      // Very basic text-to-number mapping for MTG terminology
+      const drawMatch = oracle.match(/Draw (two|three|four) cards/i);
+      if (drawMatch) {
+        const textToNum = { 'two': 2, 'three': 3, 'four': 4 };
+        card.engineMetadata.spellEffects.push({ type: 'DRAW', amount: textToNum[drawMatch[1].toLowerCase()] });
+      }
+    }
+    
+    // New code
+    // Parse Destroy (e.g., "Destroy target creature")
+    const destroyMatch = oracle.match(/Destroy target (creature|artifact|enchantment|land)/i);
+    if (destroyMatch) {
+      card.engineMetadata.spellEffects.push({
+        type: 'DESTROY',
+        targetType: destroyMatch[1].toLowerCase()
+      });
+    }
+
+    // Parse Mill
+    const millMatch = oracle.match(/mills? (\d+) cards?/i);
+    if (millMatch) {
+      card.engineMetadata.spellEffects.push({ type: 'MILL', amount: parseInt(millMatch[1], 10) });
+    }
+
+    // Parse Scry
+    const scryMatch = oracle.match(/scry (\d+)/i);
+    if (scryMatch) {
+      card.engineMetadata.spellEffects.push({ type: 'SCRY', amount: parseInt(scryMatch[1], 10) });
+    }
+  }
+
+  // 4. Mana Abilities
   if (oracle.includes('{T}: Add')) {
     if (oracle.includes('{W}')) card.engineMetadata.manaAbilities.push('W');
     if (oracle.includes('{U}')) card.engineMetadata.manaAbilities.push('U');
@@ -37,12 +116,9 @@ export function parseCardData(rawCard) {
     if (oracle.includes('{R}')) card.engineMetadata.manaAbilities.push('R');
     if (oracle.includes('{G}')) card.engineMetadata.manaAbilities.push('G');
     if (oracle.includes('{C}')) card.engineMetadata.manaAbilities.push('C');
-    if (/Add one mana of any color/i.test(oracle)) {
-      card.engineMetadata.manaAbilities = ['W', 'U', 'B', 'R', 'G', 'C'];
-    }
   }
 
-  // Fallback for basic lands that might not explicitly have "{T}: Add" in their DB oracle_text
+  // Basic Land Fallback
   if (typeLine.includes('Basic Land')) {
     if (typeLine.includes('Plains')) card.engineMetadata.manaAbilities.push('W');
     if (typeLine.includes('Island')) card.engineMetadata.manaAbilities.push('U');
@@ -50,17 +126,12 @@ export function parseCardData(rawCard) {
     if (typeLine.includes('Mountain')) card.engineMetadata.manaAbilities.push('R');
     if (typeLine.includes('Forest')) card.engineMetadata.manaAbilities.push('G');
   }
-
-  // Deduplicate mana abilities
   card.engineMetadata.manaAbilities = [...new Set(card.engineMetadata.manaAbilities)];
 
-  // 4. Fetch Lands
-  // Matches "Search your library for an Island or Swamp card"
+  // 5. Fetch Lands
   const fetchMatch = oracle.match(/Search your library for an? (.*?) card/i);
   if (fetchMatch && oracle.includes('Pay 1 life') && oracle.includes('Sacrifice')) {
     card.engineMetadata.isFetchLand = true;
-    
-    // Extract basic land types from the matched string
     const typesStr = fetchMatch[1];
     const allowedTypes = [];
     if (typesStr.includes('Plains')) allowedTypes.push('Plains');
@@ -68,7 +139,6 @@ export function parseCardData(rawCard) {
     if (typesStr.includes('Swamp')) allowedTypes.push('Swamp');
     if (typesStr.includes('Mountain')) allowedTypes.push('Mountain');
     if (typesStr.includes('Forest')) allowedTypes.push('Forest');
-    
     card.engineMetadata.fetchTypes = allowedTypes;
   }
 

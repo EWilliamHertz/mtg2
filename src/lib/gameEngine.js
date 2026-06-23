@@ -1,4 +1,4 @@
-// New code
+
 import { v4 as uuidv4 } from 'uuid';
 import { parseCardData } from './cardParser.js';
 
@@ -46,7 +46,7 @@ export class GameEngine {
     };
   }
 
-  // New code
+  
   createLibrary(deckCards) {
     let library = [];
     deckCards.forEach(dc => {
@@ -441,24 +441,82 @@ export class GameEngine {
     this.checkWinConditions();
   }
 
-  checkWinConditions() {
-    if (this.state.mode === '1v0') {
-      if (this.state.virtualOpponent.life <= 0) {
-        this.endGame(0, 'Goldfish Opponent life reached 0');
-      } else if (this.state.players[0].life <= 0) {
-        this.endGame(-1, 'Player life reached 0');
-      }
-    } else {
-      let alivePlayers = this.state.players.filter(p => p.life > 0);
-      if (alivePlayers.length === 1) {
-        this.endGame(alivePlayers[0].index, 'Opponent life reached 0');
-      } else if (alivePlayers.length === 0) {
-        this.endGame(null, 'Both players life reached 0');
-      }
-    }
-  }
+  // New code
+  checkWinConditions() {
+    if (this.state.mode === '1v0') {
+      if (this.state.virtualOpponent.life <= 0) {
+        this.endGame(0, 'Goldfish Opponent life reached 0');
+      } else if (this.state.players[0].life <= 0) {
+        this.endGame(-1, 'Player life reached 0');
+      }
+    } else {
+      let alivePlayers = this.state.players.filter(p => p.life > 0);
+      if (alivePlayers.length === 1) {
+        this.endGame(alivePlayers[0].index, 'Opponent life reached 0');
+      } else if (alivePlayers.length === 0) {
+        this.endGame(null, 'Both players life reached 0');
+      }
+    }
+  }
 
-  handleAction(playerId, action) {
+
+
+
+  resolveEffects(playerIndex, effects, sourceName) {
+    const player = this.state.players[playerIndex];
+    
+    effects.forEach(effect => {
+      switch (effect.type) {
+        case 'DRAW':
+          this.drawCards(playerIndex, effect.amount);
+          this.log(`${player.name} draws ${effect.amount} card(s) from ${sourceName}.`);
+          break;
+        case 'GAIN_LIFE':
+          player.life += effect.amount;
+          this.log(`${player.name} gains ${effect.amount} life from ${sourceName}.`);
+          break;
+// New code
+        case 'SURVEIL':
+          if (player.library.length > 0) {
+            player.isSurveiling = true;
+            player.surveilCard = player.library[0];
+            this.log(`${player.name} Surveils ${effect.amount} from ${sourceName}.`);
+          }
+          break;
+        case 'MILL':
+          const milledCards = player.library.splice(0, effect.amount);
+          player.graveyard.push(...milledCards);
+          this.log(`${player.name} mills ${effect.amount} card(s) from ${sourceName}.`);
+          break;
+        case 'SCRY':
+          if (player.library.length > 0) {
+            player.isScrying = true;
+            player.scryCard = player.library[0]; // Simplification for Scry 1 UI
+            this.log(`${player.name} Scries ${effect.amount} from ${sourceName}.`);
+          }
+          break;
+        case 'DEAL_DAMAGE':
+          if (this.state.mode === '1v0') {
+            this.state.virtualOpponent.life -= effect.amount;
+            this.log(`${sourceName} deals ${effect.amount} damage to Goldfish Opponent.`);
+          } else {
+            const opp = this.state.players[this.getOpponentIndex(playerIndex)];
+            opp.life -= effect.amount;
+            this.log(`${sourceName} deals ${effect.amount} damage to ${opp.name}.`);
+          }
+          this.checkWinConditions();
+          break;
+        case 'DESTROY':
+          this.log(`${sourceName} effect triggered: Destroy target ${effect.targetType} (Manual UI targeting not yet implemented).`);
+          break;
+      }
+    });
+  }
+
+
+
+
+  handleAction(playerId, action) {
     const playerIndex = this.getPlayerIndex(playerId);
     if (playerIndex === -1) return { success: false, error: 'Player not found' };
     const player = this.state.players[playerIndex];
@@ -547,14 +605,14 @@ export class GameEngine {
           if (cardIdx === -1) throw new Error('Card not in hand');
           const card = player.hand[cardIdx];
 
-          // New code
+          
           const isLand = card.type_line.includes('Land');
           if (isLand) {
             if (!['main1', 'main2'].includes(this.state.phase)) throw new Error('Lands can only be played in main phases');
             if (this.state.activePlayer !== playerIndex) throw new Error('Lands can only be played on your turn');
             if (player.landsPlayedThisTurn >= player.maxLandsPerTurn) throw new Error('Max lands played this turn');
             
-            // New code
+            
             player.hand.splice(cardIdx, 1);
             player.landsPlayedThisTurn++;
 
@@ -587,23 +645,35 @@ export class GameEngine {
                this.payMana(player, card.mana_cost);
             }
 
+            // New code
             player.hand.splice(cardIdx, 1);
             if (card.type_line.includes('Instant') || card.type_line.includes('Sorcery')) {
                player.graveyard.push(card);
                this.log(`${player.name} casts ${card.name}.`);
-               // Resolve immediately for now
+               
+               // --- Execute Spell Effects ---
+               if (card.engineMetadata?.spellEffects?.length > 0) {
+                 this.resolveEffects(playerIndex, card.engineMetadata.spellEffects, card.name);
+               }
             } else {
-               card.tapped = false;
+               // Automatically handle "Enters the battlefield tapped" for non-land permanents
+               card.tapped = card.engineMetadata?.entersTapped || false;
                card.summoningSick = card.type_line.includes('Creature') && !(card.keywords || []).includes('Haste');
                card.damage = 0;
                player.battlefield.push(card);
-               this.log(`${player.name} casts ${card.name}.`);
+               this.log(`${player.name} casts ${card.name}${card.tapped ? ' (enters tapped)' : ''}.`);
+
+               // --- Execute ETB Effects ---
+               if (card.engineMetadata?.etbEffects?.length > 0) {
+                 this.resolveEffects(playerIndex, card.engineMetadata.etbEffects, card.name);
+               }
             }
           }
           return { success: true };
 
         
-       // New code
+       
+        // New code
         case 'tap-land':
           const land = player.battlefield.find(c => c.instanceId === action.instanceId);
           if (!land) throw new Error('Land not on battlefield');
@@ -643,28 +713,7 @@ export class GameEngine {
           player.manaPool[colorAdded] = (player.manaPool[colorAdded] || 0) + 1;
           this.log(`${player.name} taps ${land.name} for ${colorAdded}.`);
           return { success: true };
-          }
 
-          if (land.tapped) throw new Error('Land is already tapped');
-          land.tapped = true;
-          
-          // Determine mana added
-          let colorAdded = action.color;
-          if (!colorAdded) {
-            if (land.type_line.includes('Plains')) colorAdded = 'W';
-            else if (land.type_line.includes('Island')) colorAdded = 'U';
-            else if (land.type_line.includes('Swamp')) colorAdded = 'B';
-            else if (land.type_line.includes('Mountain')) colorAdded = 'R';
-            else if (land.type_line.includes('Forest')) colorAdded = 'G';
-            else colorAdded = 'C';
-          }
-          
-          player.manaPool[colorAdded] = (player.manaPool[colorAdded] || 0) + 1;
-          this.log(`${player.name} taps ${land.name} for ${colorAdded}.`);
-          return { success: true };
-
-        
-        
         case 'resolve-library-search':
           if (!player.isSearchingLibrary) throw new Error('Not currently searching library');
           
@@ -690,7 +739,7 @@ export class GameEngine {
             this.log(`${player.name} fails to find a card.`);
           }
           
-          // New code
+          
           player.isSearchingLibrary = false;
           player.searchCriteria = null;
           // Shuffle library
@@ -701,21 +750,39 @@ export class GameEngine {
           this.log(`${player.name} shuffles their library.`);
           return { success: true };
 
+        // New code
         case 'resolve-surveil':
           if (!player.isSurveiling) throw new Error('Not currently surveiling');
           
-          const topCard = player.library.shift(); // Remove from top
+          const topCardSurveil = player.library.shift(); // Remove from top
           
           if (action.keepOnTop) {
-            player.library.unshift(topCard); // Put back
+            player.library.unshift(topCardSurveil); // Put back
             this.log(`${player.name} leaves the card on top of their library.`);
           } else {
-            player.graveyard.push(topCard); // Put in graveyard
+            player.graveyard.push(topCardSurveil); // Put in graveyard
             this.log(`${player.name} puts the card into their graveyard.`);
           }
           
           player.isSurveiling = false;
           player.surveilCard = null;
+          return { success: true };
+
+        case 'resolve-scry':
+          if (!player.isScrying) throw new Error('Not currently scrying');
+          
+          const topCardScry = player.library.shift();
+          
+          if (action.keepOnTop) {
+            player.library.unshift(topCardScry);
+            this.log(`${player.name} puts a card on top of their library.`);
+          } else {
+            player.library.push(topCardScry); // Push goes to the bottom of the array
+            this.log(`${player.name} puts a card on the bottom of their library.`);
+          }
+          
+          player.isScrying = false;
+          player.scryCard = null;
           return { success: true };
 
         case 'declare-attackers':

@@ -426,7 +426,7 @@ function GameContent() {
       )}
 
       
-      // New code
+      
       {playerState.isSurveiling && playerState.surveilCard && (
         <div className={styles.overlay}>
           <div className={styles.modal}>
