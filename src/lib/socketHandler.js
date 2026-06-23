@@ -162,7 +162,8 @@ export function registerSocketHandlers(io) {
 
     // ========== FIX #2: CORRECT game-action HANDLER ==========
     // game-action: { gameId, playerId, type, ...payload }
-    socket.on('game-action', ({ gameId, playerId, type, ...payload }) => {
+    socket.on('game-action', (data) => {
+      const { gameId, playerId, type, ...payload } = data;
       const info = playerSockets.get(socket.id);
       if (!info) return;
       
