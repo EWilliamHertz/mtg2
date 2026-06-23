@@ -40,7 +40,7 @@ export function parseCardData(rawCard) {
       card.engineMetadata.etbEffects.push({ type: 'GAIN_LIFE', amount: parseInt(lifeMatch[1], 10) });
     }
 
-    // New code
+    
     // Parse Surveil
     const surveilMatch = effectText.match(/surveil (\d+)/i);
     if (surveilMatch) {
@@ -85,7 +85,7 @@ export function parseCardData(rawCard) {
       }
     }
     
-    // New code
+    
     // Parse Destroy (e.g., "Destroy target creature")
     const destroyMatch = oracle.match(/Destroy target (creature|artifact|enchantment|land)/i);
     if (destroyMatch) {

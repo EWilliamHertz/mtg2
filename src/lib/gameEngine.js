@@ -441,7 +441,7 @@ export class GameEngine {
     this.checkWinConditions();
   }
 
-  // New code
+  
   checkWinConditions() {
     if (this.state.mode === '1v0') {
       if (this.state.virtualOpponent.life <= 0) {
@@ -475,7 +475,7 @@ export class GameEngine {
           player.life += effect.amount;
           this.log(`${player.name} gains ${effect.amount} life from ${sourceName}.`);
           break;
-// New code
+
         case 'SURVEIL':
           if (player.library.length > 0) {
             player.isSurveiling = true;
@@ -645,7 +645,7 @@ export class GameEngine {
                this.payMana(player, card.mana_cost);
             }
 
-            // New code
+            
             player.hand.splice(cardIdx, 1);
             if (card.type_line.includes('Instant') || card.type_line.includes('Sorcery')) {
                player.graveyard.push(card);
@@ -673,7 +673,7 @@ export class GameEngine {
 
         
        
-        // New code
+        
         case 'tap-land':
           const land = player.battlefield.find(c => c.instanceId === action.instanceId);
           if (!land) throw new Error('Land not on battlefield');
@@ -750,7 +750,7 @@ export class GameEngine {
           this.log(`${player.name} shuffles their library.`);
           return { success: true };
 
-        // New code
+        
         case 'resolve-surveil':
           if (!player.isSurveiling) throw new Error('Not currently surveiling');
           

@@ -15,7 +15,7 @@
   margin: 0 -10px;
 }
 
-/* New code */
+/*  */
 .cardWrapper:hover {
   transform: translateY(-50px) scale(1.05) !important;
   z-index: 50 !important;
