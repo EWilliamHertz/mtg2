@@ -173,6 +173,7 @@ export function registerSocketHandlers(io) {
             lobby.status = 'waiting';
             lobby.players.forEach(p => p.ready = false);
             io.to(lobbyId).emit('lobby-update', lobby);
+            io.to(lobbyId).emit('error', 'Failed to start game: ' + error.message);
           }
         }
       }
