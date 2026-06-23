@@ -99,23 +99,6 @@ export default function PlayPage() {
     fetchDecks();
   }, []);
 
-  // ─── Fetch lobbies ───
-  const fetchLobbies = useCallback(async () => {
-    try {
-      const res = await fetch('/api/lobbies');
-      if (res.ok) {
-        const data = await res.json();
-        setLobbies(data);
-      }
-    } catch {
-      // Silently handle
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchLobbies();
-  }, [fetchLobbies]);
-
   // ─── Socket event listeners ───
   useEffect(() => {
     if (!socket) return;
@@ -125,9 +108,15 @@ export default function PlayPage() {
     };
 
     const handleLobbyUpdate = (lobby) => {
-      setLobbies((prev) =>
-        prev.map((l) => (l.id === lobby.id ? lobby : l))
-      );
+      setLobbies((prev) => {
+        const index = prev.findIndex(l => l.id === lobby.id);
+        if (index >= 0) {
+          const next = [...prev];
+          next[index] = lobby;
+          return next;
+        }
+        return [...prev, lobby];
+      });
       if (waitingLobby && lobby.id === waitingLobby.id) {
         setWaitingLobby(lobby);
       }
