@@ -39,7 +39,7 @@ export function registerSocketHandlers(io) {
       lobbies.set(lobbyId, lobby);
       socket.join(lobbyId);
       console.log(`✓ Lobby created: ${lobbyId} (${playerName})`);
-      socket.emit('lobby-created', { lobbyId, playerId });
+      socket.emit('lobby-created', { lobbyId, playerId, lobby });
       broadcastLobbies(io);  // Broadcast updated list to all clients
     });
 

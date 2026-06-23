@@ -167,14 +167,12 @@ export default function PlayPage() {
           deckId: selectedDeckId
         });
         
-        // Wait for lobby-update to get the lobby ID
-        const onLobbyUpdate = (lobby) => {
-          if (lobby.name === `${playerName}'s Solo Game`) {
-            socket.off('lobby-update', onLobbyUpdate);
-            socket.emit('ready', { lobbyId: lobby.id });
-          }
+        // Wait for lobby-created to get the lobby ID
+        const onLobbyCreated = ({ lobbyId }) => {
+          socket.off('lobby-created', onLobbyCreated);
+          socket.emit('ready', { lobbyId });
         };
-        socket.on('lobby-update', onLobbyUpdate);
+        socket.on('lobby-created', onLobbyCreated);
       }
     } catch (err) {
       setError(err.message || 'Failed to start solo game.');
