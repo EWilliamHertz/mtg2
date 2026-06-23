@@ -205,16 +205,14 @@ export default function PlayPage() {
           deckId: createDeckId
         });
 
-        const onLobbyUpdate = (lobby) => {
-          if (lobby.name === (lobbyName || `${playerName}'s Lobby`)) {
-            socket.off('lobby-update', onLobbyUpdate);
-            setWaitingLobby(lobby);
-            setShowCreateModal(false);
-            setIsReady(false);
-            setLoading(false);
-          }
+        const onLobbyCreated = ({ lobbyId, lobby }) => {
+          socket.off('lobby-created', onLobbyCreated);
+          setWaitingLobby(lobby || { id: lobbyId, name: lobbyName || `${playerName}'s Lobby` });
+          setShowCreateModal(false);
+          setIsReady(false);
+          setLoading(false);
         };
-        socket.on('lobby-update', onLobbyUpdate);
+        socket.on('lobby-created', onLobbyCreated);
       }
     } catch (err) {
       setError(err.message || 'Failed to create lobby.');

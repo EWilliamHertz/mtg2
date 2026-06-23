@@ -247,11 +247,14 @@ export function registerSocketHandlers(io) {
               }
             }
           }
+        // New code
         } else {
           // Action failed
           const errorMsg = result?.error || `Action ${type} failed`;
           console.warn(`❌ Action failed: ${errorMsg}`);
           socket.emit('error', errorMsg);
+          // Force a state sync to revert any optimistic frontend updates
+          socket.emit('game-update', engine.getState(playerId));
         }
       } catch (error) {
         console.error(`💥 Error handling action ${type}:`, error.message);

@@ -161,17 +161,18 @@ function GameContent() {
     );
   };
 
+  // New code
   const confirmAttackers = () => {
-    handleAction('declare-attackers', { attackerIds: attackers });
+    handleAction('declare-attackers', { attackers: attackers });
     setAttackers([]);
   };
 
-  const assignBlocker = (blockerId, attackerId) => {
-    setBlockers((prev) => [...prev, { blockerId, attackerId }]);
+  const assignBlocker = (blockerInstanceId, attackerInstanceId) => {
+    setBlockers((prev) => [...prev, { blockerInstanceId, attackerInstanceId }]);
   };
 
   const confirmBlockers = () => {
-    handleAction('declare-blockers', { blockerAssignments: blockers });
+    handleAction('declare-blockers', { blockers: blockers });
     setBlockers([]);
   };
 

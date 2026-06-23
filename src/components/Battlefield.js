@@ -12,12 +12,13 @@ export default function Battlefield({
   isOpponent = false,
 }) {
   // Group cards by type
-  const lands = cards.filter((p) => p.card?.type_line?.includes('Land'));
-  const creatures = cards.filter((p) => p.card?.type_line?.includes('Creature'));
+  // New code
+  const lands = cards.filter((p) => p?.type_line?.includes('Land'));
+  const creatures = cards.filter((p) => p?.type_line?.includes('Creature'));
   const others = cards.filter(
     (p) =>
-      !p.card?.type_line?.includes('Land') &&
-      !p.card?.type_line?.includes('Creature')
+      !p?.type_line?.includes('Land') &&
+      !p?.type_line?.includes('Creature')
   );
 
   const renderZone = (permanents, label) => {
@@ -35,14 +36,15 @@ export default function Battlefield({
         <div className={styles.zoneLabel}>{label}</div>
         <div className={styles.zone}>
           {permanents.map((permanent) => (
+            // New code
             <div
               key={permanent.instanceId}
               onClick={() => onCardClick?.(permanent)}
-              onMouseEnter={(e) => onCardHover?.(permanent.card, e)}
+              onMouseEnter={(e) => onCardHover?.(permanent, e)}
               onMouseLeave={() => onCardLeave?.()}
             >
               <Card
-                card={permanent.card}
+                card={permanent}
                 size="sm"
                 tapped={permanent.tapped}
                 summoningSick={permanent.summoningSick}

@@ -13,12 +13,14 @@ export class GameEngine {
       turn: 1,
       activePlayer: 0,
       priorityPlayer: 0,
-      players: players.map((p, index) => ({
-        id: p.id,
-        name: p.name,
-        index,
-        life: 20,
-        manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+      // New code
+      players: players.map((p, index) => ({
+        id: p.id,
+        socketId: p.socketId,
+        name: p.name,
+        index,
+        life: 20,
+        manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         landsPlayedThisTurn: 0,
         maxLandsPerTurn: 1,
         deck: p.deck || p.deckCards || [],
