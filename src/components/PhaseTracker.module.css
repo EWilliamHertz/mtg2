@@ -1,0 +1,64 @@
+.tracker {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(18, 18, 31, 0.8);
+  border-radius: 12px;
+  padding: 12px 8px;
+  border: 1px solid rgba(201, 168, 76, 0.15);
+  width: 160px;
+  backdrop-filter: blur(12px);
+}
+
+.phase {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  transition: all 200ms ease;
+  border-left: 3px solid transparent;
+  color: #9e9e9e;
+  cursor: default;
+  user-select: none;
+}
+
+.phaseCurrent {
+  background: rgba(201, 168, 76, 0.1);
+  border-left-color: #c9a84c;
+  color: #c9a84c;
+  font-weight: 600;
+  animation: phaseGlow 2s ease-in-out infinite;
+}
+
+.phasePast {
+  opacity: 0.35;
+}
+
+.phaseIcon {
+  font-size: 0.9rem;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.nextBtn {
+  margin-top: 8px;
+  width: 100%;
+}
+
+@keyframes phaseGlow {
+  0% {
+    background: rgba(201, 168, 76, 0.1);
+    box-shadow: none;
+  }
+  50% {
+    background: rgba(201, 168, 76, 0.18);
+    box-shadow: inset 0 0 12px rgba(201, 168, 76, 0.12), 0 0 8px rgba(201, 168, 76, 0.08);
+  }
+  100% {
+    background: rgba(201, 168, 76, 0.1);
+    box-shadow: none;
+  }
+}

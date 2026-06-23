@@ -1,0 +1,183 @@
+/* ===== Card Container ===== */
+.card {
+  position: relative;
+  flex-shrink: 0;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 250ms ease, box-shadow 250ms ease, border-color 250ms ease, opacity 250ms ease;
+  border: 2px solid transparent;
+  background: #1a1a2e;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ===== Sizes ===== */
+.cardSm {
+  width: 80px;
+  height: 112px; /* 80 * 7/5 */
+  border-radius: 8px;
+}
+
+.cardMd {
+  width: 130px;
+  height: 182px; /* 130 * 7/5 */
+  border-radius: 10px;
+}
+
+.cardLg {
+  width: 200px;
+  height: 280px; /* 200 * 7/5 */
+  border-radius: 12px;
+}
+
+/* ===== Card Image ===== */
+.cardImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: inherit;
+}
+
+/* ===== Card Back ===== */
+.cardBack {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  background:
+    linear-gradient(135deg, #1a1a2e 25%, transparent 25%) -10px 0,
+    linear-gradient(225deg, #1a1a2e 25%, transparent 25%) -10px 0,
+    linear-gradient(315deg, #1a1a2e 25%, transparent 25%),
+    linear-gradient(45deg, #1a1a2e 25%, transparent 25%);
+  background-size: 20px 20px;
+  background-color: #12121f;
+  border-radius: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cardBack::before {
+  content: '';
+  position: absolute;
+  inset: 8%;
+  border: 2px solid rgba(201, 168, 76, 0.25);
+  border-radius: 8px;
+  background: linear-gradient(
+    160deg,
+    rgba(201, 168, 76, 0.06) 0%,
+    rgba(18, 18, 31, 0.9) 40%,
+    rgba(108, 99, 255, 0.06) 100%
+  );
+}
+
+.cardBack::after {
+  content: '';
+  position: absolute;
+  width: 40%;
+  height: 40%;
+  border: 2px solid rgba(201, 168, 76, 0.15);
+  border-radius: 50%;
+  transform: rotate(45deg);
+  background: radial-gradient(
+    circle,
+    rgba(201, 168, 76, 0.08) 0%,
+    transparent 70%
+  );
+}
+
+/* ===== Shimmer Loading Placeholder ===== */
+.shimmer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    110deg,
+    #12121f 0%,
+    #12121f 30%,
+    rgba(201, 168, 76, 0.08) 50%,
+    #12121f 70%,
+    #12121f 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmerAnim 1.8s ease-in-out infinite;
+  z-index: 2;
+  pointer-events: none;
+}
+
+@keyframes shimmerAnim {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* ===== Tapped ===== */
+.tapped {
+  transform: rotate(90deg);
+  transform-origin: center center;
+}
+
+/* Prevent hover scale when tapped */
+.tapped:hover {
+  transform: rotate(90deg) !important;
+}
+
+/* ===== Summoning Sick ===== */
+.summoningSick {
+  opacity: 0.85;
+  animation: summoningSickPulse 2.5s ease-in-out infinite;
+}
+
+@keyframes summoningSickPulse {
+  0%, 100% {
+    border-color: rgba(158, 158, 158, 0.3);
+    box-shadow: 0 0 6px rgba(158, 158, 158, 0.15);
+  }
+  50% {
+    border-color: rgba(158, 158, 158, 0.6);
+    box-shadow: 0 0 12px rgba(158, 158, 158, 0.3);
+  }
+}
+
+/* ===== Attacking ===== */
+.attacking {
+  border-color: #d3202a;
+  box-shadow: 0 0 12px rgba(211, 32, 42, 0.6), 0 0 24px rgba(211, 32, 42, 0.3);
+}
+
+/* ===== Blocking ===== */
+.blocking {
+  border-color: #0e68ab;
+  box-shadow: 0 0 12px rgba(14, 104, 171, 0.6), 0 0 24px rgba(14, 104, 171, 0.3);
+}
+
+/* ===== Selected ===== */
+.selected {
+  border-color: #c9a84c;
+  box-shadow: 0 0 12px rgba(201, 168, 76, 0.5), 0 0 24px rgba(201, 168, 76, 0.25);
+  animation: glow 2s ease-in-out infinite;
+}
+
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(201, 168, 76, 0.5), 0 0 24px rgba(201, 168, 76, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(201, 168, 76, 0.7), 0 0 36px rgba(201, 168, 76, 0.4);
+  }
+}
+
+/* ===== Hover (non-tapped) ===== */
+.card:not(.tapped):hover {
+  transform: scale(1.08);
+  z-index: 10;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 16px rgba(201, 168, 76, 0.15);
+}

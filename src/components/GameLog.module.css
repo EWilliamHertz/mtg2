@@ -1,0 +1,49 @@
+.logContainer {
+  background: rgba(18, 18, 31, 0.8);
+  border-radius: 12px;
+  border: 1px solid rgba(201, 168, 76, 0.15);
+  padding: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+  backdrop-filter: blur(12px);
+}
+
+.logContainer::-webkit-scrollbar {
+  width: 4px;
+}
+
+.logContainer::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.logContainer::-webkit-scrollbar-thumb {
+  background: rgba(201, 168, 76, 0.2);
+  border-radius: 2px;
+}
+
+.logTitle {
+  font-family: 'Cinzel', serif;
+  font-size: 0.85rem;
+  color: #c9a84c;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.logEntry {
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(201, 168, 76, 0.05);
+  font-size: 0.75rem;
+  color: #9e9e9e;
+  line-height: 1.4;
+}
+
+.logEntry:last-child {
+  border-bottom: none;
+}
+
+.logTimestamp {
+  color: rgba(201, 168, 76, 0.5);
+  margin-right: 6px;
+  font-size: 0.7rem;
+}

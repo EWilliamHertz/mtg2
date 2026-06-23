@@ -1,0 +1,96 @@
+.pool {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.orb {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  transition: all 200ms ease;
+  position: relative;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  cursor: default;
+  user-select: none;
+}
+
+.orbActive {
+  animation: orbPulse 2s ease-in-out infinite;
+}
+
+.orbEmpty {
+  opacity: 0.3;
+}
+
+/* --- Mana color classes --- */
+
+.orbW {
+  background: #f9faf4;
+  color: #333;
+}
+.orbW.orbActive {
+  box-shadow: 0 0 10px rgba(249, 250, 244, 0.5), 0 0 20px rgba(249, 250, 244, 0.25);
+}
+
+.orbU {
+  background: #0e68ab;
+  color: #fff;
+}
+.orbU.orbActive {
+  box-shadow: 0 0 10px rgba(14, 104, 171, 0.6), 0 0 20px rgba(14, 104, 171, 0.3);
+}
+
+.orbB {
+  background: #150b00;
+  color: #aaa;
+  border-color: #444;
+}
+.orbB.orbActive {
+  box-shadow: 0 0 10px rgba(80, 50, 20, 0.6), 0 0 20px rgba(80, 50, 20, 0.3);
+}
+
+.orbR {
+  background: #d3202a;
+  color: #fff;
+}
+.orbR.orbActive {
+  box-shadow: 0 0 10px rgba(211, 32, 42, 0.6), 0 0 20px rgba(211, 32, 42, 0.3);
+}
+
+.orbG {
+  background: #00733e;
+  color: #fff;
+}
+.orbG.orbActive {
+  box-shadow: 0 0 10px rgba(0, 115, 62, 0.6), 0 0 20px rgba(0, 115, 62, 0.3);
+}
+
+.orbC {
+  background: #ccc2c0;
+  color: #333;
+}
+.orbC.orbActive {
+  box-shadow: 0 0 10px rgba(204, 194, 192, 0.5), 0 0 20px rgba(204, 194, 192, 0.25);
+}
+
+@keyframes orbPulse {
+  0% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.08);
+    filter: brightness(1.2);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}

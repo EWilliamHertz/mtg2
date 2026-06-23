@@ -1,0 +1,968 @@
+/* ===== Page Layout ===== */
+.page {
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+  padding: 100px 20px 40px;
+  background-color: #0a0a14;
+}
+
+/* ===== Top Nav ===== */
+.topNav {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 20px 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 10;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(10, 10, 20, 0.8);
+  backdrop-filter: blur(10px);
+}
+
+.navLogo {
+  font-family: 'Cinzel', serif;
+  font-size: 1.5rem;
+  color: #c9a84c;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.navActions {
+  display: flex;
+  gap: 15px;
+}
+
+.btnLogin {
+  background: transparent;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 8px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btnLogin:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.btnRegister {
+  background: #c9a84c;
+  color: #000;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(201, 168, 76, 0.2);
+}
+
+.btnRegister:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(201, 168, 76, 0.4);
+}
+
+/* ===== Floating Particles ===== */
+.particles {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.particle {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  background: rgba(201, 168, 76, 0.3);
+  border-radius: 50%;
+  animation: particleFloat linear infinite;
+}
+
+.particle:nth-child(1) {
+  left: 10%;
+  top: 20%;
+  animation-duration: 18s;
+  animation-delay: 0s;
+  width: 2px;
+  height: 2px;
+}
+
+.particle:nth-child(2) {
+  left: 25%;
+  top: 60%;
+  animation-duration: 22s;
+  animation-delay: -3s;
+  width: 4px;
+  height: 4px;
+  background: rgba(108, 99, 255, 0.2);
+}
+
+.particle:nth-child(3) {
+  left: 45%;
+  top: 10%;
+  animation-duration: 15s;
+  animation-delay: -5s;
+}
+
+.particle:nth-child(4) {
+  left: 60%;
+  top: 80%;
+  animation-duration: 20s;
+  animation-delay: -2s;
+  width: 2px;
+  height: 2px;
+}
+
+.particle:nth-child(5) {
+  left: 80%;
+  top: 35%;
+  animation-duration: 25s;
+  animation-delay: -8s;
+  width: 4px;
+  height: 4px;
+}
+
+.particle:nth-child(6) {
+  left: 15%;
+  top: 85%;
+  animation-duration: 19s;
+  animation-delay: -4s;
+  background: rgba(108, 99, 255, 0.15);
+}
+
+.particle:nth-child(7) {
+  left: 70%;
+  top: 50%;
+  animation-duration: 23s;
+  animation-delay: -10s;
+  width: 2px;
+  height: 2px;
+}
+
+.particle:nth-child(8) {
+  left: 35%;
+  top: 40%;
+  animation-duration: 17s;
+  animation-delay: -6s;
+}
+
+.particle:nth-child(9) {
+  left: 90%;
+  top: 15%;
+  animation-duration: 21s;
+  animation-delay: -1s;
+  width: 4px;
+  height: 4px;
+  background: rgba(201, 168, 76, 0.2);
+}
+
+.particle:nth-child(10) {
+  left: 50%;
+  top: 70%;
+  animation-duration: 16s;
+  animation-delay: -7s;
+}
+
+.particle:nth-child(11) {
+  left: 5%;
+  top: 45%;
+  animation-duration: 24s;
+  animation-delay: -12s;
+  width: 2px;
+  height: 2px;
+  background: rgba(108, 99, 255, 0.18);
+}
+
+.particle:nth-child(12) {
+  left: 55%;
+  top: 90%;
+  animation-duration: 14s;
+  animation-delay: -9s;
+}
+
+@keyframes particleFloat {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  50% {
+    transform: translate(60px, -120px) scale(1.3);
+    opacity: 0.7;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-30px, -250px) scale(0.8);
+    opacity: 0;
+  }
+}
+
+/* ===== Content Container ===== */
+.content {
+  position: relative;
+  z-index: 1;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* ===== Hero Section ===== */
+.hero {
+  text-align: center;
+  margin-bottom: 48px;
+  animation: fadeIn 800ms ease both;
+}
+
+.title {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  font-weight: 700;
+  background: linear-gradient(135deg, #c9a84c 0%, #e8d48b 40%, #dbc06c 60%, #c9a84c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+  position: relative;
+  display: inline-block;
+  margin-bottom: 12px;
+  line-height: 1.2;
+}
+
+.title::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 120%;
+  height: 150%;
+  background: radial-gradient(ellipse, rgba(201, 168, 76, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.subtitle {
+  color: #9e9e9e;
+  font-size: 1.2rem;
+  letter-spacing: 0.05em;
+  font-family: 'Inter', sans-serif;
+  font-weight: 300;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ===== Name Section ===== */
+.nameSection {
+  max-width: 400px;
+  margin: 0 auto 40px;
+  text-align: center;
+  animation: fadeIn 800ms ease 200ms both;
+}
+
+.nameLabel {
+  display: block;
+  color: #9e9e9e;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+  font-family: 'Inter', sans-serif;
+}
+
+.nameInput {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(18, 18, 31, 0.8);
+  border: 1px solid rgba(201, 168, 76, 0.2);
+  border-radius: 8px;
+  color: #e8e6e3;
+  font-size: 1rem;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  transition: all 300ms ease;
+  text-align: center;
+}
+
+.nameInput:focus {
+  border-color: #c9a84c;
+  box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.15), 0 0 20px rgba(201, 168, 76, 0.1);
+}
+
+.nameInput::placeholder {
+  color: #555;
+}
+
+/* ===== Mode Selection Cards ===== */
+.modes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 24px;
+  margin-bottom: 48px;
+  animation: fadeIn 800ms ease 400ms both;
+}
+
+.modeCard {
+  background: rgba(18, 18, 31, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(201, 168, 76, 0.1);
+  border-radius: 16px;
+  padding: 32px;
+  text-align: center;
+  transition: all 300ms ease;
+  cursor: default;
+}
+
+.modeCard:hover {
+  transform: translateY(-4px);
+  border-color: rgba(201, 168, 76, 0.4);
+  box-shadow: 0 8px 32px rgba(201, 168, 76, 0.12), 0 0 60px rgba(201, 168, 76, 0.06);
+}
+
+.modeIcon {
+  font-size: 3rem;
+  margin-bottom: 16px;
+  display: block;
+  filter: drop-shadow(0 0 8px rgba(201, 168, 76, 0.3));
+}
+
+.modeTitle {
+  font-family: 'Cinzel', serif;
+  font-size: 1.5rem;
+  color: #c9a84c;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.modeDesc {
+  color: #9e9e9e;
+  font-size: 0.9rem;
+  margin-bottom: 20px;
+  line-height: 1.6;
+  font-family: 'Inter', sans-serif;
+}
+
+/* ===== Buttons ===== */
+.btnPrimary {
+  display: inline-block;
+  padding: 12px 28px;
+  background: linear-gradient(135deg, #c9a84c, #b8943f);
+  color: #0a0a14;
+  border: none;
+  border-radius: 8px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 300ms ease;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.btnPrimary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #dbc06c, #c9a84c);
+  box-shadow: 0 4px 20px rgba(201, 168, 76, 0.4);
+  transform: translateY(-1px);
+}
+
+.btnPrimary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btnPrimary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnSecondary {
+  display: inline-block;
+  padding: 12px 28px;
+  background: transparent;
+  color: #c9a84c;
+  border: 1px solid rgba(201, 168, 76, 0.3);
+  border-radius: 8px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 300ms ease;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.btnSecondary:hover {
+  border-color: #c9a84c;
+  background: rgba(201, 168, 76, 0.08);
+  box-shadow: 0 0 20px rgba(201, 168, 76, 0.1);
+}
+
+.btnRow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* ===== Deck Select ===== */
+.deckSelect {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: rgba(10, 10, 20, 0.8);
+  border: 1px solid rgba(201, 168, 76, 0.2);
+  border-radius: 8px;
+  color: #e8e6e3;
+  font-size: 0.9rem;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  cursor: pointer;
+  transition: all 300ms ease;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23c9a84c' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+}
+
+.deckSelect:focus {
+  border-color: #c9a84c;
+  box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.12);
+}
+
+.deckSelect option {
+  background: #12121f;
+  color: #e8e6e3;
+}
+
+/* ===== Lobby Browser Section ===== */
+.lobbySection {
+  margin-top: 32px;
+  animation: fadeIn 800ms ease 600ms both;
+}
+
+.sectionTitle {
+  font-family: 'Cinzel', serif;
+  font-size: 1.6rem;
+  color: #c9a84c;
+  margin-bottom: 20px;
+  text-align: center;
+  position: relative;
+}
+
+.sectionTitle::after {
+  content: '';
+  display: block;
+  width: 60px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #c9a84c, transparent);
+  margin: 10px auto 0;
+}
+
+.lobbyTable {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 6px;
+}
+
+.lobbyHeaderRow th {
+  padding: 10px 16px;
+  text-align: left;
+  color: #9e9e9e;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  border-bottom: 1px solid rgba(201, 168, 76, 0.1);
+}
+
+.lobbyRow {
+  background: rgba(18, 18, 31, 0.6);
+  transition: all 200ms ease;
+}
+
+.lobbyRow:hover {
+  background: rgba(26, 26, 46, 0.8);
+}
+
+.lobbyRow td {
+  padding: 12px 16px;
+  color: #e8e6e3;
+  font-size: 0.9rem;
+  font-family: 'Inter', sans-serif;
+}
+
+.lobbyRow td:first-child {
+  border-radius: 8px 0 0 8px;
+}
+
+.lobbyRow td:last-child {
+  border-radius: 0 8px 8px 0;
+  text-align: right;
+}
+
+.joinBtn {
+  padding: 6px 18px;
+  background: transparent;
+  color: #c9a84c;
+  border: 1px solid rgba(201, 168, 76, 0.3);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 200ms ease;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.joinBtn:hover:not(:disabled) {
+  background: rgba(201, 168, 76, 0.1);
+  border-color: #c9a84c;
+}
+
+.joinBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 40px 20px;
+  color: #9e9e9e;
+  font-size: 0.95rem;
+  font-family: 'Inter', sans-serif;
+  background: rgba(18, 18, 31, 0.4);
+  border-radius: 12px;
+  border: 1px dashed rgba(201, 168, 76, 0.15);
+}
+
+.lobbyStatus {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.statusWaiting {
+  background: rgba(201, 168, 76, 0.15);
+  color: #c9a84c;
+}
+
+.statusInGame {
+  background: rgba(108, 99, 255, 0.15);
+  color: #6c63ff;
+}
+
+.statusFull {
+  background: rgba(158, 158, 158, 0.15);
+  color: #9e9e9e;
+}
+
+/* ===== Connection Status ===== */
+.connectionStatus {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-family: 'Inter', sans-serif;
+  color: #9e9e9e;
+  z-index: 100;
+  background: rgba(10, 10, 20, 0.8);
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(8px);
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.connected {
+  background: #00cc66;
+  box-shadow: 0 0 6px rgba(0, 204, 102, 0.6);
+}
+
+.disconnected {
+  background: #d3202a;
+  box-shadow: 0 0 6px rgba(211, 32, 42, 0.4);
+}
+
+/* ===== Modal ===== */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 200ms ease;
+}
+
+.modalContent {
+  background: #12121f;
+  border: 1px solid rgba(201, 168, 76, 0.2);
+  border-radius: 16px;
+  padding: 32px;
+  width: 90%;
+  max-width: 440px;
+  animation: modalSlideUp 300ms ease;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+
+.modalTitle {
+  font-family: 'Cinzel', serif;
+  font-size: 1.4rem;
+  color: #c9a84c;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.modalLabel {
+  display: block;
+  color: #9e9e9e;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+  margin-top: 16px;
+  font-family: 'Inter', sans-serif;
+}
+
+.modalInput {
+  width: 100%;
+  padding: 10px 14px;
+  background: rgba(10, 10, 20, 0.8);
+  border: 1px solid rgba(201, 168, 76, 0.2);
+  border-radius: 8px;
+  color: #e8e6e3;
+  font-size: 0.95rem;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  transition: all 300ms ease;
+  box-sizing: border-box;
+}
+
+.modalInput:focus {
+  border-color: #c9a84c;
+  box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.12);
+}
+
+.modalButtons {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.modalButtons .btnPrimary,
+.modalButtons .btnSecondary {
+  flex: 1;
+  margin-top: 0;
+}
+
+@keyframes modalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ===== Waiting Overlay ===== */
+.waitingOverlay {
+  text-align: center;
+  padding: 40px 20px;
+  background: rgba(18, 18, 31, 0.8);
+  border: 1px solid rgba(201, 168, 76, 0.15);
+  border-radius: 16px;
+  margin-top: 24px;
+  animation: fadeIn 400ms ease;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(201, 168, 76, 0.15);
+  border-top-color: #c9a84c;
+  border-radius: 50%;
+  animation: spin 800ms linear infinite;
+  margin: 0 auto 20px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.waitingText {
+  color: #9e9e9e;
+  font-size: 1rem;
+  font-family: 'Inter', sans-serif;
+  margin-bottom: 8px;
+}
+
+.waitingLobbyName {
+  color: #c9a84c;
+  font-family: 'Cinzel', serif;
+  font-size: 1.1rem;
+  margin-bottom: 16px;
+}
+
+.readyBtn {
+  display: inline-block;
+  padding: 10px 32px;
+  background: linear-gradient(135deg, #00cc66, #00a854);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 300ms ease;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 12px;
+}
+
+.readyBtn:hover {
+  box-shadow: 0 4px 20px rgba(0, 204, 102, 0.3);
+  transform: translateY(-1px);
+}
+
+.readyBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.readyStatus {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 8px;
+}
+
+.isReady {
+  background: rgba(0, 204, 102, 0.15);
+  color: #00cc66;
+}
+
+.notReady {
+  background: rgba(158, 158, 158, 0.15);
+  color: #9e9e9e;
+}
+
+.opponentInfo {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: rgba(26, 26, 46, 0.5);
+  border-radius: 8px;
+  color: #e8e6e3;
+  font-size: 0.9rem;
+}
+
+/* ===== Error Banner ===== */
+.errorBanner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: rgba(211, 32, 42, 0.92);
+  color: #ffffff;
+  padding: 12px 20px;
+  text-align: center;
+  z-index: 1100;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  animation: slideDown 300ms ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.errorDismiss {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-family: 'Inter', sans-serif;
+  transition: background 200ms;
+}
+
+.errorDismiss:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* ===== Nav Link ===== */
+.navLink {
+  display: inline-block;
+  margin-top: 32px;
+  color: #c9a84c;
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-family: 'Inter', sans-serif;
+  transition: all 200ms ease;
+  letter-spacing: 0.03em;
+}
+
+.navLink:hover {
+  text-decoration: underline;
+  color: #dbc06c;
+  text-shadow: 0 0 12px rgba(201, 168, 76, 0.3);
+}
+
+.navRow {
+  text-align: center;
+  margin-top: 16px;
+}
+
+/* ===== Lobby Join Deck Selector ===== */
+.joinDeckRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.joinDeckRow .deckSelect {
+  margin-top: 0;
+  flex: 1;
+}
+
+.joinDeckRow .joinBtn {
+  flex-shrink: 0;
+}
+
+/* ===== Players Badge ===== */
+.playersBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  background: rgba(108, 99, 255, 0.1);
+  border-radius: 12px;
+  font-size: 0.8rem;
+  color: #6c63ff;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .page {
+    padding: 24px 16px;
+  }
+
+  .modes {
+    grid-template-columns: 1fr;
+  }
+
+  .modeCard {
+    padding: 24px;
+  }
+
+  .title {
+    font-size: 2.2rem;
+  }
+
+  .subtitle {
+    font-size: 1rem;
+  }
+
+  .lobbyTable {
+    font-size: 0.85rem;
+  }
+
+  .lobbyRow td {
+    padding: 10px 12px;
+  }
+
+  .modalContent {
+    padding: 24px;
+    margin: 16px;
+  }
+
+  .connectionStatus {
+    top: 10px;
+    right: 10px;
+    font-size: 0.7rem;
+    padding: 4px 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .lobbyHeaderRow th:nth-child(3),
+  .lobbyRow td:nth-child(3) {
+    display: none;
+  }
+
+  .modalButtons {
+    flex-direction: column;
+  }
+
+  .joinDeckRow {
+    flex-direction: column;
+  }
+}

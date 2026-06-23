@@ -1,0 +1,27 @@
+.hand {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  padding: 10px 20px 0;
+  min-height: 130px;
+  position: relative;
+  perspective: 1000px;
+}
+
+.cardWrapper {
+  transition: all 250ms ease;
+  cursor: pointer;
+  position: relative;
+  margin: 0 -10px;
+}
+
+.cardWrapper:hover {
+  transform: translateY(-20px) !important;
+  z-index: 5 !important;
+}
+
+.cardSelected {
+  transform: translateY(-30px) !important;
+  z-index: 10 !important;
+  filter: drop-shadow(0 0 8px rgba(201, 168, 76, 0.6));
+}
