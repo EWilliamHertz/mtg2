@@ -245,7 +245,10 @@ function GameContent() {
                 <LifeCounter life={opponentState.life} name={opponentState.name || 'Opponent'} />
               </div>
               <div className={styles.opponentHand}>
-                {Array.from({ length: opponentState.handSize || 0 }).map((_, i) => (
+                <span style={{color: '#aaa', fontSize: 12, marginRight: 8}}>
+                  {opponentState.hand?.length || 0} cards in hand
+                </span>
+                {Array.from({ length: opponentState.hand?.length || 0 }).map((_, i) => (
                   <div key={i} className={styles.cardBack} />
                 ))}
               </div>
