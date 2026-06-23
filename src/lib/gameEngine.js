@@ -138,6 +138,10 @@ export class GameEngine {
     return this.state.players.findIndex(p => p.id === playerId);
   }
 
+  isGameOver() {
+    return this.state.gameOver || this.state.players.some(p => p.life <= 0);
+  }
+
   drawCards(playerIndex, count) {
     const player = this.state.players[playerIndex];
     for (let i = 0; i < count; i++) {

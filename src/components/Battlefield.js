@@ -74,7 +74,11 @@ export default function Battlefield({
     <div
       className={`${styles.battlefield} ${isOpponent ? styles.battlefieldOpponent : ''}`}
     >
-      {zones.map((zone) => renderZone(zone.permanents, zone.label))}
+      {zones.map((zone) => (
+        <div key={zone.label}>
+          {renderZone(zone.permanents, zone.label)}
+        </div>
+      ))}
     </div>
   );
 }
