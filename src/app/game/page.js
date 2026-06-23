@@ -62,9 +62,25 @@ function GameContent() {
   const [selectedCard, setSelectedCard] = useState(null);
   const [attackers, setAttackers] = useState([]);
   const [blockers, setBlockers] = useState([]);
+  // New code
   const [zoneOverlay, setZoneOverlay] = useState(null);
   const [mulliganState, setMulliganState] = useState(null);
   const [gameOver, setGameOver] = useState(null);
+  const [previewCard, setPreviewCard] = useState(null);
+  const previewTimer = useRef(null);
+
+  const handleGlobalHover = useCallback((card) => {
+    if (!card) return;
+    if (previewTimer.current) clearTimeout(previewTimer.current);
+    previewTimer.current = setTimeout(() => {
+      setPreviewCard(card);
+    }, 2000); // 2 second delay
+  }, []);
+
+  const handleGlobalLeave = useCallback(() => {
+    if (previewTimer.current) clearTimeout(previewTimer.current);
+    setPreviewCard(null);
+  }, []);
 
   useEffect(() => {
     if (!socket || !isConnected || !gameId || !playerId) return;
@@ -253,8 +269,14 @@ function GameContent() {
                   <div key={i} className={styles.cardBack} />
                 ))}
               </div>
+              // New code
               <div className={styles.battlefieldWrapper}>
-                <Battlefield cards={opponentState.battlefield} isOpponent={true} />
+                <Battlefield 
+                  cards={opponentState.battlefield} 
+                  isOpponent={true} 
+                  onCardHover={handleGlobalHover}
+                  onCardLeave={handleGlobalLeave}
+                />
               </div>
             </>
           ) : (
@@ -266,6 +288,7 @@ function GameContent() {
         </div>
 
         <div className={styles.playerZone}>
+          // New code
           <div className={styles.battlefieldWrapper}>
             <Battlefield 
               cards={playerState.battlefield} 
@@ -276,9 +299,12 @@ function GameContent() {
                   tapLand(card.instanceId);
                 }
               }}
+              onCardHover={handleGlobalHover}
+              onCardLeave={handleGlobalLeave}
               attackers={attackers}
             />
           </div>
+          // New code
           <div className={styles.handWrapper}>
             <Hand 
               cards={playerState.hand} 
@@ -287,6 +313,8 @@ function GameContent() {
                 setSelectedCard(card.instanceId);
                 playCard(card.instanceId);
               }}
+              onCardHover={handleGlobalHover}
+              onCardLeave={handleGlobalLeave}
             />
           </div>
         </div>
@@ -321,9 +349,16 @@ function GameContent() {
         <div className={styles.gameLogWrapper}>
           <GameLog logs={logs} />
         </div>
+        // New code
         <div className={styles.turnControls}>
           <button className={styles.button} onClick={nextPhase}>Next Phase</button>
           
+          <div className={styles.turnIndicator}>
+            {activePlayerId === playerId 
+              ? "Your Turn" 
+              : (opponentState?.name ? `${opponentState.name}'s Turn` : "Opponent's Turn")}
+          </div>
+
           {gameState.phase === 'combat_attackers' && activePlayerId === playerId && (
             <button className={styles.button} onClick={confirmAttackers}>Confirm Attackers</button>
           )}
@@ -398,12 +433,25 @@ function GameContent() {
         </div>
       )}
 
+      // New code
       {gameOver && (
         <div className={styles.overlay}>
           <div className={`${styles.modal} ${gameOver === 'victory' ? styles.victoryModal : styles.defeatModal}`}>
             <h1 style={{fontSize: 48, color: 'white'}}>{gameOver === 'victory' ? 'Victory!' : 'Defeat'}</h1>
             <button className={styles.button} onClick={() => router.push('/')} style={{marginTop: 20}}>Back to Main Menu</button>
           </div>
+        </div>
+      )}
+
+      {previewCard && (
+        <div 
+          className={styles.globalCardPreview} 
+          onClick={() => setPreviewCard(null)}
+        >
+          <img 
+            src={previewCard.image_uri ? `/api/image-proxy?url=${encodeURIComponent(previewCard.image_uri)}` : ''} 
+            alt={previewCard.name || 'Preview'} 
+          />
         </div>
       )}
     </div>

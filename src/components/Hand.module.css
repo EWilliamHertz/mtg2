@@ -15,9 +15,10 @@
   margin: 0 -10px;
 }
 
+/* New code */
 .cardWrapper:hover {
-  transform: translateY(-20px) !important;
-  z-index: 5 !important;
+  transform: translateY(-50px) scale(1.05) !important;
+  z-index: 50 !important;
 }
 
 .cardSelected {
