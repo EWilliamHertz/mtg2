@@ -45,24 +45,23 @@ export class GameEngine {
   createLibrary(deckCards) {
     let library = [];
     deckCards.forEach(dc => {
-      for (let i = 0; i < dc.quantity; i++) {
-        library.push({
-          instanceId: uuidv4(),
-          cardId: dc.card_id || dc.scryfall_id, // allow both aliases
-          name: dc.name,
-          mana_cost: dc.mana_cost,
-          cmc: dc.cmc,
-          type_line: dc.type_line,
-          oracle_text: dc.oracle_text,
-          power: dc.power,
-          toughness: dc.toughness,
-          colors: dc.colors,
-          color_identity: dc.color_identity,
-          keywords: dc.keywords || [],
-          rarity: dc.rarity,
-          image_uri: dc.image_uri
-        });
-      }
+      // Each dc is already a single card instance (socketHandler expands by quantity)
+      library.push({
+        instanceId: uuidv4(),
+        cardId: dc.card_id || dc.scryfall_id,
+        name: dc.name,
+        mana_cost: dc.mana_cost,
+        cmc: dc.cmc,
+        type_line: dc.type_line,
+        oracle_text: dc.oracle_text,
+        power: dc.power,
+        toughness: dc.toughness,
+        colors: dc.colors,
+        color_identity: dc.color_identity,
+        keywords: dc.keywords || [],
+        rarity: dc.rarity,
+        image_uri: dc.image_uri
+      });
     });
     // Shuffle
     for (let i = library.length - 1; i > 0; i--) {
@@ -529,8 +528,10 @@ export class GameEngine {
           return { success: true };
 
         case 'play-card':
+          if (this.state.phase === 'mulligan') throw new Error('Must complete mulligan first');
           if (this.state.priorityPlayer !== playerIndex) throw new Error('You do not have priority');
           
+          console.log(`  play-card: looking for instanceId=${action.instanceId}, hand has: [${player.hand.map(c => c.instanceId).join(', ')}]`);
           const cardIdx = player.hand.findIndex(c => c.instanceId === action.instanceId);
           if (cardIdx === -1) throw new Error('Card not in hand');
           const card = player.hand[cardIdx];
@@ -666,6 +667,10 @@ export class GameEngine {
 
         case 'next-phase':
         case 'pass-priority':
+          // Block during mulligan - must keep hand first
+          if (this.state.phase === 'mulligan') {
+            return { success: false, error: 'Must complete mulligan first (Keep or Mulligan)' };
+          }
           // In a single-player game or when it's your turn, advance to next phase
           if (this.state.activePlayer === playerIndex || this.state.mode === '1v0') {
             this.advancePhase();

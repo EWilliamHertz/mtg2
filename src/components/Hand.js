@@ -14,11 +14,11 @@ export default function Hand({ cards = [], onCardClick, onCardHover, onCardLeave
         const centerOffset = i - (count - 1) / 2;
         const rotation = centerOffset * (maxRotation / Math.max(count - 1, 1));
         const yOffset = Math.abs(centerOffset) * 8; // creates arc
-        const isSelected = selectedCardId === card.id;
+        const isSelected = selectedCardId === card.instanceId;
 
         return (
           <div
-            key={card.id || i}
+            key={card.instanceId || i}
             className={`${styles.cardWrapper} ${isSelected ? styles.cardSelected : ''}`}
             style={{
               transform: `rotate(${rotation}deg) translateY(${yOffset}px)`,

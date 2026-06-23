@@ -29,7 +29,7 @@ export default function ZoneOverlay({ cards = [], title = '', isOpen = false, on
         ) : (
           <div className={styles.grid}>
             {cards.map((card, i) => (
-              <div key={card.id || i}>
+              <div key={card.instanceId || i}>
                 <Card card={card} size="md" />
               </div>
             ))}
