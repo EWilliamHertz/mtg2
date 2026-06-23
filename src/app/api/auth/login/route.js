@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key';
 
+
 export async function POST(request) {
   try {
     const { username, password } = await request.json();
