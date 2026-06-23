@@ -26,7 +26,7 @@ function BottomingInterface({ hand, count, onConfirm, styles }) {
       <p>Select {count} cards to put on the bottom.</p>
       <div className={styles.mulliganHand}>
         {hand.map(card => (
-          // New code
+          
           <div 
             key={card.instanceId} 
             onClick={() => toggleCard(card.instanceId)}
@@ -70,7 +70,7 @@ function GameContent() {
   const [previewCard, setPreviewCard] = useState(null);
   const previewTimer = useRef(null);
 
-  // New code
+  
   const handleGlobalHover = useCallback((card) => {
     if (!card) return;
     if (previewTimer.current) clearTimeout(previewTimer.current);
@@ -151,13 +151,18 @@ function GameContent() {
   };
 
   const playCard = (instanceId) => {
-    handleAction('play-card', { instanceId });
-    setSelectedCard(null);
-  };
+    handleGlobalLeave(); // Force hover to disappear
+    handleAction('play-card', { instanceId });
+    setSelectedCard(null);
+  };
 
-  const tapLand = (instanceId) => {
-    handleAction('tap-land', { instanceId });
-  };
+
+
+
+  const tapLand = (instanceId) => {
+    handleGlobalLeave(); // Force hover to disappear
+    handleAction('tap-land', { instanceId });
+  };
 
   const nextPhase = () => {
     handleAction('next-phase');
@@ -390,7 +395,7 @@ function GameContent() {
         <div className={styles.overlay}>
           <div className={styles.modal}>
             <h2>Mulligan Decision</h2>
-            // New code
+            
             <div className={styles.mulliganHand}>
               {playerState.hand.map(card => (
                 <div key={card.instanceId} style={{width: 150}}>
@@ -421,12 +426,39 @@ function GameContent() {
       )}
 
       
+      // New code
+      {playerState.isSurveiling && playerState.surveilCard && (
+        <div className={styles.overlay}>
+          <div className={styles.modal}>
+            <h2>Surveil 1</h2>
+            <p>You may put this card into your graveyard. Otherwise, it stays on top of your library.</p>
+            <div className={styles.mulliganHand} style={{ justifyContent: 'center' }}>
+                <div style={{ width: 200 }}>
+                  <img 
+                    src={playerState.surveilCard.image_uri ? `/api/image-proxy?url=${encodeURIComponent(playerState.surveilCard.image_uri)}` : 'https://upload.wikimedia.org/wikipedia/en/a/aa/Magic_the_gathering_card_back.jpg'} 
+                    alt={playerState.surveilCard.name || 'Card'} 
+                    style={{ width: '100%', borderRadius: 8 }} 
+                  />
+                </div>
+            </div>
+            <div style={{ display: 'flex', gap: 20, justifyContent: 'center', marginTop: 20 }}>
+              <button className={styles.button} onClick={() => handleAction('resolve-surveil', { keepOnTop: true })}>
+                Keep on Top
+              </button>
+              <button className={styles.button} onClick={() => handleAction('resolve-surveil', { keepOnTop: false })}>
+                Put in Graveyard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {playerState.isSearchingLibrary && (
         <div className={styles.overlay}>
           <div className={styles.modal} style={{ maxWidth: '90%' }}>
             <h2>Search Your Library</h2>
             <p>Select a card to put onto the battlefield.</p>
-            // New code
+            
             <div className={styles.mulliganHand} style={{ flexWrap: 'wrap', maxHeight: '60vh', overflowY: 'auto' }}>
               {playerState.library.map(card => {
                 // If a criteria exists, verify the card's type_line contains at least one allowed subtype
@@ -445,7 +477,7 @@ function GameContent() {
                     onClick={() => {
                       if (isValidTarget) handleAction('resolve-library-search', { targetInstanceId: card.instanceId });
                     }}
-                  // New code
+                  
                   >
                     <img 
                       src={card.image_uri ? `/api/image-proxy?url=${encodeURIComponent(card.image_uri)}` : 'https://upload.wikimedia.org/wikipedia/en/a/aa/Magic_the_gathering_card_back.jpg'} 
@@ -468,7 +500,7 @@ function GameContent() {
           <div className={styles.modal}>
             <h2>Discard to Maximum Hand Size</h2>
             <p>You have {playerState.hand.length} cards in hand. Discard {playerState.hand.length - 7} cards.</p>
-            // New code
+            
             <div className={styles.mulliganHand}>
               {playerState.hand.map(card => (
                 <div key={card.instanceId} style={{width: 150}} onClick={() => handleAction('discard', { cardInstanceId: card.instanceId })}>

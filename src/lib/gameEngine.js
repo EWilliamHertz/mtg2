@@ -1,4 +1,6 @@
+// New code
 import { v4 as uuidv4 } from 'uuid';
+import { parseCardData } from './cardParser.js';
 
 export class GameEngine {
   constructor(mode, players, isBO3 = false) {
@@ -44,25 +46,29 @@ export class GameEngine {
     };
   }
 
+  // New code
   createLibrary(deckCards) {
     let library = [];
     deckCards.forEach(dc => {
-      // Each dc is already a single card instance (socketHandler expands by quantity)
+      // Run the card through the parser to understand its abilities
+      const parsedDc = parseCardData(dc);
+      
       library.push({
         instanceId: uuidv4(),
-        cardId: dc.card_id || dc.scryfall_id,
-        name: dc.name,
-        mana_cost: dc.mana_cost,
-        cmc: dc.cmc,
-        type_line: dc.type_line,
-        oracle_text: dc.oracle_text,
-        power: dc.power,
-        toughness: dc.toughness,
-        colors: dc.colors,
-        color_identity: dc.color_identity,
-        keywords: dc.keywords || [],
-        rarity: dc.rarity,
-        image_uri: dc.image_uri
+        cardId: parsedDc.card_id || parsedDc.scryfall_id,
+        name: parsedDc.name,
+        mana_cost: parsedDc.mana_cost,
+        cmc: parsedDc.cmc,
+        type_line: parsedDc.type_line,
+        oracle_text: parsedDc.oracle_text,
+        power: parsedDc.power,
+        toughness: parsedDc.toughness,
+        colors: parsedDc.colors,
+        color_identity: parsedDc.color_identity,
+        keywords: parsedDc.keywords || [],
+        rarity: parsedDc.rarity,
+        image_uri: parsedDc.image_uri,
+        engineMetadata: parsedDc.engineMetadata // Inject the smart metadata
       });
     });
     // Shuffle
@@ -541,17 +547,33 @@ export class GameEngine {
           if (cardIdx === -1) throw new Error('Card not in hand');
           const card = player.hand[cardIdx];
 
+          // New code
           const isLand = card.type_line.includes('Land');
           if (isLand) {
             if (!['main1', 'main2'].includes(this.state.phase)) throw new Error('Lands can only be played in main phases');
             if (this.state.activePlayer !== playerIndex) throw new Error('Lands can only be played on your turn');
             if (player.landsPlayedThisTurn >= player.maxLandsPerTurn) throw new Error('Max lands played this turn');
             
+            // New code
             player.hand.splice(cardIdx, 1);
-            card.tapped = false;
-            player.battlefield.push(card);
             player.landsPlayedThisTurn++;
-            this.log(`${player.name} plays ${card.name}.`);
+
+            // Apply ETB Tapped logic dynamically from the parser
+            card.tapped = card.engineMetadata?.entersTapped || false;
+            player.battlefield.push(card);
+
+            // Apply Surveil logic dynamically from the parser
+            if (card.engineMetadata?.surveilWhenETB > 0) {
+               if (player.library.length > 0) {
+                 player.isSurveiling = true;
+                 player.surveilCard = player.library[0]; 
+                 this.log(`${player.name} plays ${card.name}${card.tapped ? ' tapped' : ''} and Surveils ${card.engineMetadata.surveilWhenETB}.`);
+               } else {
+                 this.log(`${player.name} plays ${card.name}${card.tapped ? ' tapped' : ''}.`);
+               }
+            } else {
+               this.log(`${player.name} plays ${card.name}${card.tapped ? ' tapped' : ''}.`);
+            }
           } else {
             // Check timing
             const isInstant = card.type_line.includes('Instant') || (card.keywords || []).includes('Flash');
@@ -581,39 +603,46 @@ export class GameEngine {
           return { success: true };
 
         
+       // New code
         case 'tap-land':
           const land = player.battlefield.find(c => c.instanceId === action.instanceId);
           if (!land) throw new Error('Land not on battlefield');
           
-          // New code
-          // --- Fetch Land Intercept ---
-          const fetchLands = {
-            'Polluted Delta': ['Island', 'Swamp'],
-            'Flooded Strand': ['Plains', 'Island'],
-            'Bloodstained Mire': ['Swamp', 'Mountain'],
-            'Wooded Foothills': ['Mountain', 'Forest'],
-            'Windswept Heath': ['Forest', 'Plains'],
-            'Marsh Flats': ['Plains', 'Swamp'],
-            'Scalding Tarn': ['Island', 'Mountain'],
-            'Verdant Catacombs': ['Swamp', 'Forest'],
-            'Arid Mesa': ['Mountain', 'Plains'],
-            'Misty Rainforest': ['Forest', 'Island']
-          };
+          // --- Fetch Land Intercept ---
+          if (land.engineMetadata?.isFetchLand) {
+            if (player.life <= 1) throw new Error('Not enough life to activate');
+            
+            player.life -= 1;
+            const landIdx = player.battlefield.findIndex(c => c.instanceId === action.instanceId);
+            player.graveyard.push(player.battlefield.splice(landIdx, 1)[0]);
+            
+            player.isSearchingLibrary = true;
+            player.searchCriteria = land.engineMetadata.fetchTypes; // Pull types dynamically
+            this.log(`${player.name} activates ${land.name}, pays 1 life and sacrifices it to search their library.`);
+            return { success: true };
+          }
 
-
-
-
-          if (fetchLands[land.name]) {
-            if (player.life <= 1) throw new Error('Not enough life to activate');
-            
-            player.life -= 1;
-            const landIdx = player.battlefield.findIndex(c => c.instanceId === action.instanceId);
-            player.graveyard.push(player.battlefield.splice(landIdx, 1)[0]);
-            
-            player.isSearchingLibrary = true;
-            player.searchCriteria = fetchLands[land.name]; // Save allowed fetch types to state
-            this.log(`${player.name} activates ${land.name}, pays 1 life and sacrifices it to search their library.`);
-            return { success: true };
+          if (land.tapped) throw new Error('Land is already tapped');
+          land.tapped = true;
+          
+          // Determine mana added
+          let colorAdded = action.color;
+          
+          if (!colorAdded && land.engineMetadata?.manaAbilities?.length > 0) {
+             // Default to the first available color if none specified
+             colorAdded = land.engineMetadata.manaAbilities[0]; 
+          } else if (!colorAdded) {
+             colorAdded = 'C'; // Fallback
+          }
+          
+          // Validate if the requested color is actually producible by this land
+          if (land.engineMetadata?.manaAbilities && !land.engineMetadata.manaAbilities.includes(colorAdded) && colorAdded !== 'C') {
+              throw new Error(`This land cannot produce ${colorAdded} mana.`);
+          }
+          
+          player.manaPool[colorAdded] = (player.manaPool[colorAdded] || 0) + 1;
+          this.log(`${player.name} taps ${land.name} for ${colorAdded}.`);
+          return { success: true };
           }
 
           if (land.tapped) throw new Error('Land is already tapped');
@@ -635,7 +664,7 @@ export class GameEngine {
           return { success: true };
 
         
-        // New code
+        
         case 'resolve-library-search':
           if (!player.isSearchingLibrary) throw new Error('Not currently searching library');
           
@@ -661,6 +690,7 @@ export class GameEngine {
             this.log(`${player.name} fails to find a card.`);
           }
           
+          // New code
           player.isSearchingLibrary = false;
           player.searchCriteria = null;
           // Shuffle library
@@ -669,6 +699,23 @@ export class GameEngine {
             [player.library[i], player.library[j]] = [player.library[j], player.library[i]];
           }
           this.log(`${player.name} shuffles their library.`);
+          return { success: true };
+
+        case 'resolve-surveil':
+          if (!player.isSurveiling) throw new Error('Not currently surveiling');
+          
+          const topCard = player.library.shift(); // Remove from top
+          
+          if (action.keepOnTop) {
+            player.library.unshift(topCard); // Put back
+            this.log(`${player.name} leaves the card on top of their library.`);
+          } else {
+            player.graveyard.push(topCard); // Put in graveyard
+            this.log(`${player.name} puts the card into their graveyard.`);
+          }
+          
+          player.isSurveiling = false;
+          player.surveilCard = null;
           return { success: true };
 
         case 'declare-attackers':
