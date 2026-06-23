@@ -113,29 +113,14 @@ export class GameEngine {
   }
 
   getState(forPlayerId) {
-    // Deep clone to avoid mutating original state
-    let stateCopy;
-    try {
-      stateCopy = JSON.parse(JSON.stringify(this.state));
-    } catch (e) {
-      console.error('Error serializing state:', e.message);
-      // Debug: check each player for non-serializable properties
-      this.state.players.forEach((p, idx) => {
-        try {
-          JSON.stringify(p);
-        } catch (err) {
-          console.error(`Player ${idx} (${p.name}) is not serializable:`, Object.keys(p));
-          Object.keys(p).forEach(key => {
-            try {
-              JSON.stringify({ [key]: p[key] });
-            } catch (e2) {
-              console.error(`  Property '${key}' is circular:`, typeof p[key], p[key].constructor?.name);
-            }
-          });
-        }
-      });
-      throw e;
-    }
+    // Serialize with a replacer function to exclude non-serializable properties
+    const stateCopy = JSON.parse(JSON.stringify(this.state, (key, value) => {
+      // Exclude non-serializable properties
+      if (key === 'disconnectTimeout' || key === 'socketId') {
+        return undefined;
+      }
+      return value;
+    }));
     
     // Hide info for opponent
     stateCopy.players.forEach(p => {
