@@ -1,8 +1,19 @@
 import pool from '../../../lib/db.js';
+import { getUserFromRequest } from '../../../lib/auth.js';
 
-export async function GET() {
+export async function GET(request) {
   try {
-    const result = await pool.query('SELECT * FROM decks ORDER BY updated_at DESC');
+    const user = getUserFromRequest(request);
+    
+    if (!user) {
+      // Return empty list if not authenticated
+      return Response.json([]);
+    }
+
+    const result = await pool.query(
+      'SELECT * FROM decks WHERE user_id = $1 ORDER BY updated_at DESC',
+      [user.id]
+    );
     return Response.json(result.rows);
   } catch (error) {
     console.error(error);
@@ -12,6 +23,12 @@ export async function GET() {
 
 export async function POST(request) {
   try {
+    const user = getUserFromRequest(request);
+    
+    if (!user) {
+      return Response.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { name, format } = body;
     
@@ -20,8 +37,8 @@ export async function POST(request) {
     }
 
     const result = await pool.query(
-      'INSERT INTO decks (name, format, updated_at) VALUES ($1, $2, NOW()) RETURNING *',
-      [name, format]
+      'INSERT INTO decks (user_id, name, format, updated_at) VALUES ($1, $2, $3, NOW()) RETURNING *',
+      [user.id, name, format]
     );
 
     const deckId = result.rows[0].id;

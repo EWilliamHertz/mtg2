@@ -6,8 +6,16 @@ export const lobbies = new Map();
 const activeGames = new Map();
 const playerSockets = new Map(); // socketId -> {playerId, gameId}
 
+function broadcastLobbies(io) {
+  const lobbyList = Array.from(lobbies.values()).filter(l => l.status !== 'in-game');
+  io.emit('lobby-list', lobbyList);
+}
+
 export function registerSocketHandlers(io) {
   io.on('connection', (socket) => {
+    // Send current lobbies to newly connected client
+    socket.emit('lobby-list', Array.from(lobbies.values()).filter(l => l.status !== 'in-game'));
+
     // create-lobby: { name, mode, playerName, deckId }
     socket.on('create-lobby', ({ name, mode, playerName, deckId }) => {
       const lobbyId = uuidv4();
@@ -17,6 +25,7 @@ export function registerSocketHandlers(io) {
         id: lobbyId,
         name,
         mode,
+        hostName: playerName,  // Track host name
         players: [{
           id: playerId,
           name: playerName,
@@ -29,8 +38,9 @@ export function registerSocketHandlers(io) {
       
       lobbies.set(lobbyId, lobby);
       socket.join(lobbyId);
+      console.log(`✓ Lobby created: ${lobbyId} (${playerName})`);
       socket.emit('lobby-created', { lobbyId, playerId });
-      io.to(lobbyId).emit('lobby-update', lobby);
+      broadcastLobbies(io);  // Broadcast updated list to all clients
     });
 
     // join-lobby: { lobbyId, playerName, deckId }
@@ -45,6 +55,12 @@ export function registerSocketHandlers(io) {
         return;
       }
       
+      const maxPlayers = lobby.mode === '1v1' ? 2 : 1;
+      if (lobby.players.length >= maxPlayers) {
+        socket.emit('error', 'Lobby is full');
+        return;
+      }
+      
       const playerId = uuidv4();
       const player = {
         id: playerId,
@@ -56,21 +72,27 @@ export function registerSocketHandlers(io) {
       
       lobby.players.push(player);
       socket.join(lobbyId);
+      console.log(`✓ Player ${playerName} joined lobby ${lobbyId}`);
       io.to(lobbyId).emit('lobby-update', lobby);
+      broadcastLobbies(io);  // Broadcast updated list to all clients
     });
 
     // leave-lobby: { lobbyId }
     socket.on('leave-lobby', ({ lobbyId }) => {
       const lobby = lobbies.get(lobbyId);
       if (lobby) {
+        const leftPlayer = lobby.players.find(p => p.socketId === socket.id);
         lobby.players = lobby.players.filter(p => p.socketId !== socket.id);
         socket.leave(lobbyId);
         
         if (lobby.players.length === 0) {
           lobbies.delete(lobbyId);
+          console.log(`✓ Lobby ${lobbyId} deleted (empty)`);
         } else {
+          console.log(`✓ Player ${leftPlayer?.name} left lobby ${lobbyId}`);
           io.to(lobbyId).emit('lobby-update', lobby);
         }
+        broadcastLobbies(io);  // Broadcast updated list to all clients
       }
     });
 
@@ -89,6 +111,7 @@ export function registerSocketHandlers(io) {
         if (allReady && lobby.players.length >= requiredPlayers) {
           lobby.status = 'in-game';
           io.to(lobbyId).emit('lobby-update', lobby);
+          broadcastLobbies(io);  // Remove from lobby list for other players
           
           try {
             for (const p of lobby.players) {

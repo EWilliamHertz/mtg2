@@ -1,5 +1,12 @@
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS cards (
     scryfall_id TEXT PRIMARY KEY,
     oracle_id TEXT,
@@ -27,6 +34,7 @@ CREATE INDEX IF NOT EXISTS idx_cards_name_trgm ON cards USING gin(name gin_trgm_
 
 CREATE TABLE IF NOT EXISTS decks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     format TEXT DEFAULT 'casual',
     created_at TIMESTAMPTZ DEFAULT now(),

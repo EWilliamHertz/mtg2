@@ -1,7 +1,9 @@
 import pool from '../../../../lib/db.js';
+import { getUserFromRequest } from '../../../../lib/auth.js';
 
 export async function GET(request, { params }) {
   const { id } = params;
+  const user = getUserFromRequest(request);
 
   try {
     const deckResult = await pool.query('SELECT * FROM decks WHERE id = $1', [id]);
@@ -10,6 +12,11 @@ export async function GET(request, { params }) {
     }
     
     const deck = deckResult.rows[0];
+    
+    // Check ownership if user is logged in
+    if (user && deck.user_id !== user.id) {
+      return Response.json({ error: 'Unauthorized' }, { status: 403 });
+    }
 
     const cardsResult = await pool.query(
       `SELECT c.*, dc.quantity, dc.is_sideboard 
@@ -31,7 +38,23 @@ export async function GET(request, { params }) {
 
 export async function PUT(request, { params }) {
   const { id } = params;
+  const user = getUserFromRequest(request);
+  
+  if (!user) {
+    return Response.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
   try {
+    // Verify ownership
+    const deckResult = await pool.query('SELECT user_id FROM decks WHERE id = $1', [id]);
+    if (deckResult.rows.length === 0) {
+      return Response.json({ error: 'Deck not found' }, { status: 404 });
+    }
+    
+    if (deckResult.rows[0].user_id !== user.id) {
+      return Response.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { name, format } = body;
 
@@ -39,10 +62,6 @@ export async function PUT(request, { params }) {
       'UPDATE decks SET name = COALESCE($1, name), format = COALESCE($2, format), updated_at = NOW() WHERE id = $3 RETURNING *',
       [name, format, id]
     );
-
-    if (result.rows.length === 0) {
-      return Response.json({ error: 'Deck not found' }, { status: 404 });
-    }
 
     if (body.cards) {
       await pool.query('DELETE FROM deck_cards WHERE deck_id = $1', [id]);
@@ -63,12 +82,24 @@ export async function PUT(request, { params }) {
 
 export async function DELETE(request, { params }) {
   const { id } = params;
+  const user = getUserFromRequest(request);
+  
+  if (!user) {
+    return Response.json({ error: 'Not authenticated' }, { status: 401 });
+  }
 
   try {
-    const result = await pool.query('DELETE FROM decks WHERE id = $1 RETURNING *', [id]);
-    if (result.rows.length === 0) {
+    // Verify ownership
+    const deckResult = await pool.query('SELECT user_id FROM decks WHERE id = $1', [id]);
+    if (deckResult.rows.length === 0) {
       return Response.json({ error: 'Deck not found' }, { status: 404 });
     }
+    
+    if (deckResult.rows[0].user_id !== user.id) {
+      return Response.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
+    const result = await pool.query('DELETE FROM decks WHERE id = $1 RETURNING *', [id]);
     return Response.json({ message: 'Deck deleted successfully' });
   } catch (error) {
     console.error(error);
