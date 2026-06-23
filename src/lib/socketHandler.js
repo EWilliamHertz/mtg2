@@ -137,16 +137,37 @@ export function registerSocketHandlers(io) {
       }
     });
 
-    // game-action: { gameId, action }
-    socket.on('game-action', ({ gameId, action }) => {
+    // ========== FIX #1: ADD MISSING join-game HANDLER ==========
+    // join-game: { gameId, playerId }
+    socket.on('join-game', ({ gameId, playerId }) => {
+      const engine = activeGames.get(gameId);
+      if (engine) {
+        const player = engine.players.find(p => p.id === playerId);
+        if (player) {
+          player.socketId = socket.id;
+          playerSockets.set(socket.id, { playerId, gameId });
+          socket.join(gameId);
+          // Send both the initial game-start and current game state
+          socket.emit('game-start', { gameId, playerId });
+          socket.emit('game-update', engine.getState(playerId));
+        } else {
+          socket.emit('error', 'Player not found in game');
+        }
+      } else {
+        socket.emit('error', 'Game not found');
+      }
+    });
+
+    // ========== FIX #2: CORRECT game-action HANDLER ==========
+    // game-action: { gameId, playerId, type, ...payload }
+    socket.on('game-action', ({ gameId, playerId, type, ...payload }) => {
       const info = playerSockets.get(socket.id);
       if (!info) return;
-      const { playerId } = info;
       
       const engine = activeGames.get(gameId);
       if (engine) {
         try {
-          const success = engine.handleAction(playerId, action);
+          const success = engine.handleAction(playerId, { type, ...payload });
           if (success) {
             for (const p of engine.players) {
               const pSocket = io.sockets.sockets.get(p.socketId);
