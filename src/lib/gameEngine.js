@@ -585,19 +585,36 @@ export class GameEngine {
           const land = player.battlefield.find(c => c.instanceId === action.instanceId);
           if (!land) throw new Error('Land not on battlefield');
           
-          // --- Fetch Land Intercept ---
-          const fetchLands = ['Polluted Delta', 'Flooded Strand', 'Bloodstained Mire', 'Wooded Foothills', 'Windswept Heath', 'Marsh Flats', 'Scalding Tarn', 'Verdant Catacombs', 'Arid Mesa', 'Misty Rainforest'];
-          if (fetchLands.includes(land.name)) {
-            if (player.life <= 1) throw new Error('Not enough life to activate');
-            
-            player.life -= 1;
-            const landIdx = player.battlefield.findIndex(c => c.instanceId === action.instanceId);
-            player.graveyard.push(player.battlefield.splice(landIdx, 1)[0]);
-            
-            player.isSearchingLibrary = true;
-            this.log(`${player.name} activates ${land.name}, pays 1 life and sacrifices it to search their library.`);
-            return { success: true };
-          }
+          // New code
+          // --- Fetch Land Intercept ---
+          const fetchLands = {
+            'Polluted Delta': ['Island', 'Swamp'],
+            'Flooded Strand': ['Plains', 'Island'],
+            'Bloodstained Mire': ['Swamp', 'Mountain'],
+            'Wooded Foothills': ['Mountain', 'Forest'],
+            'Windswept Heath': ['Forest', 'Plains'],
+            'Marsh Flats': ['Plains', 'Swamp'],
+            'Scalding Tarn': ['Island', 'Mountain'],
+            'Verdant Catacombs': ['Swamp', 'Forest'],
+            'Arid Mesa': ['Mountain', 'Plains'],
+            'Misty Rainforest': ['Forest', 'Island']
+          };
+
+
+
+
+          if (fetchLands[land.name]) {
+            if (player.life <= 1) throw new Error('Not enough life to activate');
+            
+            player.life -= 1;
+            const landIdx = player.battlefield.findIndex(c => c.instanceId === action.instanceId);
+            player.graveyard.push(player.battlefield.splice(landIdx, 1)[0]);
+            
+            player.isSearchingLibrary = true;
+            player.searchCriteria = fetchLands[land.name]; // Save allowed fetch types to state
+            this.log(`${player.name} activates ${land.name}, pays 1 life and sacrifices it to search their library.`);
+            return { success: true };
+          }
 
           if (land.tapped) throw new Error('Land is already tapped');
           land.tapped = true;
@@ -618,13 +635,24 @@ export class GameEngine {
           return { success: true };
 
         
+        // New code
         case 'resolve-library-search':
           if (!player.isSearchingLibrary) throw new Error('Not currently searching library');
           
           if (action.targetInstanceId) {
             const cardIdx = player.library.findIndex(c => c.instanceId === action.targetInstanceId);
             if (cardIdx !== -1) {
-              const card = player.library.splice(cardIdx, 1)[0];
+              const card = player.library[cardIdx];
+              
+              // Validate that the chosen card matches the fetch criteria (e.g. Island or Swamp)
+              if (player.searchCriteria) {
+                const isValid = player.searchCriteria.some(type => card.type_line && card.type_line.includes(type));
+                if (!isValid) {
+                  throw new Error(`Invalid target. You must find a card with one of these types: ${player.searchCriteria.join(', ')}`);
+                }
+              }
+
+              player.library.splice(cardIdx, 1);
               card.tapped = false; // Put onto battlefield
               player.battlefield.push(card);
               this.log(`${player.name} puts ${card.name} onto the battlefield.`);
@@ -634,6 +662,7 @@ export class GameEngine {
           }
           
           player.isSearchingLibrary = false;
+          player.searchCriteria = null;
           // Shuffle library
           for (let i = player.library.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
