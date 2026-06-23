@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useSocket } from '@/hooks/useSocket';
 import styles from './page.module.css';
@@ -50,7 +50,7 @@ function BottomingInterface({ hand, count, onConfirm, styles }) {
   );
 }
 
-export default function GamePage() {
+function GameContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const gameId = searchParams?.get('gameId') || 'test-game';
@@ -372,5 +372,17 @@ export default function GamePage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function GamePage() {
+  return (
+    <Suspense fallback={
+      <div className={styles.container}>
+        <div className={styles.modal}>Loading Game...</div>
+      </div>
+    }>
+      <GameContent />
+    </Suspense>
   );
 }
