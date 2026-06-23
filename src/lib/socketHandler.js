@@ -124,7 +124,7 @@ export function registerSocketHandlers(io) {
               if (pSocket) {
                 pSocket.join(gameId);
                 const state = engine.getState(p.id);
-                pSocket.emit('game-start', state);
+                pSocket.emit('game-start', { gameId, playerId: p.id, state });
                 pSocket.emit('game-update', state);
               }
             }
@@ -150,7 +150,7 @@ export function registerSocketHandlers(io) {
           socket.join(gameId);
           // Send both the initial game-start and current game state
           const state = engine.getState(playerId);
-          socket.emit('game-start', state);
+          socket.emit('game-start', { gameId, playerId, state });
           socket.emit('game-update', state);
         } else {
           socket.emit('error', 'Player not found in game');

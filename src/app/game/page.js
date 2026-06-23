@@ -71,7 +71,8 @@ export default function GamePage() {
 
     socket.emit('join-game', { gameId, playerId });
 
-    const handleGameStart = (state) => {
+    const handleGameStart = (data) => {
+      const state = data.state || data;
       setGameState(state);
       if (state.players[playerId]?.needsMulliganDecision) {
         setMulliganState('decision');
