@@ -12,7 +12,7 @@ export default function Battlefield({
   isOpponent = false,
 }) {
   // Group cards by type
-  // New code
+  
   const lands = cards.filter((p) => p?.type_line?.includes('Land'));
   const creatures = cards.filter((p) => p?.type_line?.includes('Creature'));
   const others = cards.filter(
@@ -36,7 +36,7 @@ export default function Battlefield({
         <div className={styles.zoneLabel}>{label}</div>
         <div className={styles.zone}>
           {permanents.map((permanent) => (
-            // New code
+            
             <div
               key={permanent.instanceId}
               onClick={() => onCardClick?.(permanent)}

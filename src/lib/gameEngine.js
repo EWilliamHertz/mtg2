@@ -13,7 +13,7 @@ export class GameEngine {
       turn: 1,
       activePlayer: 0,
       priorityPlayer: 0,
-      // New code
+      
       players: players.map((p, index) => ({
         id: p.id,
         socketId: p.socketId,
@@ -129,10 +129,13 @@ export class GameEngine {
         // Hide hand details
         p.hand = p.hand.map(() => ({ instanceId: 'hidden' }));
       }
-      // Hide library details for everyone
-      p.library = p.library.map(() => ({ instanceId: 'hidden' }));
-    });
-    return stateCopy;
+    
+          // Hide library details unless the player is currently searching
+          if (p.id !== forPlayerId || !p.isSearchingLibrary) {
+            p.library = p.library.map(() => ({ instanceId: 'hidden' }));
+          }
+        });
+        return stateCopy;
   }
 
   getPlayerIndex(playerId) {
@@ -577,11 +580,26 @@ export class GameEngine {
           }
           return { success: true };
 
+        
         case 'tap-land':
           const land = player.battlefield.find(c => c.instanceId === action.instanceId);
           if (!land) throw new Error('Land not on battlefield');
-          if (land.tapped) throw new Error('Land is already tapped');
           
+          // --- Fetch Land Intercept ---
+          const fetchLands = ['Polluted Delta', 'Flooded Strand', 'Bloodstained Mire', 'Wooded Foothills', 'Windswept Heath', 'Marsh Flats', 'Scalding Tarn', 'Verdant Catacombs', 'Arid Mesa', 'Misty Rainforest'];
+          if (fetchLands.includes(land.name)) {
+            if (player.life <= 1) throw new Error('Not enough life to activate');
+            
+            player.life -= 1;
+            const landIdx = player.battlefield.findIndex(c => c.instanceId === action.instanceId);
+            player.graveyard.push(player.battlefield.splice(landIdx, 1)[0]);
+            
+            player.isSearchingLibrary = true;
+            this.log(`${player.name} activates ${land.name}, pays 1 life and sacrifices it to search their library.`);
+            return { success: true };
+          }
+
+          if (land.tapped) throw new Error('Land is already tapped');
           land.tapped = true;
           
           // Determine mana added
@@ -597,6 +615,31 @@ export class GameEngine {
           
           player.manaPool[colorAdded] = (player.manaPool[colorAdded] || 0) + 1;
           this.log(`${player.name} taps ${land.name} for ${colorAdded}.`);
+          return { success: true };
+
+        
+        case 'resolve-library-search':
+          if (!player.isSearchingLibrary) throw new Error('Not currently searching library');
+          
+          if (action.targetInstanceId) {
+            const cardIdx = player.library.findIndex(c => c.instanceId === action.targetInstanceId);
+            if (cardIdx !== -1) {
+              const card = player.library.splice(cardIdx, 1)[0];
+              card.tapped = false; // Put onto battlefield
+              player.battlefield.push(card);
+              this.log(`${player.name} puts ${card.name} onto the battlefield.`);
+            }
+          } else {
+            this.log(`${player.name} fails to find a card.`);
+          }
+          
+          player.isSearchingLibrary = false;
+          // Shuffle library
+          for (let i = player.library.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [player.library[i], player.library[j]] = [player.library[j], player.library[i]];
+          }
+          this.log(`${player.name} shuffles their library.`);
           return { success: true };
 
         case 'declare-attackers':

@@ -247,7 +247,7 @@ export function registerSocketHandlers(io) {
               }
             }
           }
-        // New code
+        
         } else {
           // Action failed
           const errorMsg = result?.error || `Action ${type} failed`;

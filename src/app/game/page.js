@@ -62,7 +62,7 @@ function GameContent() {
   const [selectedCard, setSelectedCard] = useState(null);
   const [attackers, setAttackers] = useState([]);
   const [blockers, setBlockers] = useState([]);
-  // New code
+  
   const [zoneOverlay, setZoneOverlay] = useState(null);
   const [mulliganState, setMulliganState] = useState(null);
   const [gameOver, setGameOver] = useState(null);
@@ -177,7 +177,7 @@ function GameContent() {
     );
   };
 
-  // New code
+  
   const confirmAttackers = () => {
     handleAction('declare-attackers', { attackers: attackers });
     setAttackers([]);
@@ -269,7 +269,7 @@ function GameContent() {
                   <div key={i} className={styles.cardBack} />
                 ))}
               </div>
-              // New code
+              
               <div className={styles.battlefieldWrapper}>
                 <Battlefield 
                   cards={opponentState.battlefield} 
@@ -288,7 +288,7 @@ function GameContent() {
         </div>
 
         <div className={styles.playerZone}>
-          // New code
+          
           <div className={styles.battlefieldWrapper}>
             <Battlefield 
               cards={playerState.battlefield} 
@@ -304,7 +304,7 @@ function GameContent() {
               attackers={attackers}
             />
           </div>
-          // New code
+          
           <div className={styles.handWrapper}>
             <Hand 
               cards={playerState.hand} 
@@ -349,7 +349,7 @@ function GameContent() {
         <div className={styles.gameLogWrapper}>
           <GameLog logs={logs} />
         </div>
-        // New code
+        
         <div className={styles.turnControls}>
           <button className={styles.button} onClick={nextPhase}>Next Phase</button>
           
@@ -417,6 +417,34 @@ function GameContent() {
         </div>
       )}
 
+      
+      {playerState.isSearchingLibrary && (
+        <div className={styles.overlay}>
+          <div className={styles.modal} style={{ maxWidth: '90%' }}>
+            <h2>Search Your Library</h2>
+            <p>Select a card to put onto the battlefield.</p>
+            <div className={styles.mulliganHand} style={{ flexWrap: 'wrap', maxHeight: '60vh', overflowY: 'auto' }}>
+              {playerState.library.map(card => (
+                <div 
+                  key={card.instanceId} 
+                  style={{ width: 150, cursor: 'pointer' }} 
+                  onClick={() => handleAction('resolve-library-search', { targetInstanceId: card.instanceId })}
+                >
+                  <img 
+                    src={card.image_uri || 'https://upload.wikimedia.org/wikipedia/en/a/aa/Magic_the_gathering_card_back.jpg'} 
+                    alt={card.name || 'Card'} 
+                    style={{ width: '100%', borderRadius: 8 }} 
+                  />
+                </div>
+              ))}
+            </div>
+            <button className={styles.button} onClick={() => handleAction('resolve-library-search', { targetInstanceId: null })} style={{ marginTop: 20 }}>
+              Fail to Find
+            </button>
+          </div>
+        </div>
+      )}
+
       {gameState.phase === 'cleanup' && playerState.hand.length > 7 && (
         <div className={styles.overlay}>
           <div className={styles.modal}>
@@ -433,7 +461,7 @@ function GameContent() {
         </div>
       )}
 
-      // New code
+      
       {gameOver && (
         <div className={styles.overlay}>
           <div className={`${styles.modal} ${gameOver === 'victory' ? styles.victoryModal : styles.defeatModal}`}>
