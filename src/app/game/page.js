@@ -67,7 +67,7 @@ export default function GamePage() {
   const [gameOver, setGameOver] = useState(null);
 
   useEffect(() => {
-    if (!socket || !gameId || !playerId) return;
+    if (!socket || !isConnected || !gameId || !playerId) return;
 
     socket.emit('join-game', { gameId, playerId });
 
@@ -79,13 +79,13 @@ export default function GamePage() {
       setLogs((prev) => [...prev, { id: Date.now(), text: 'Game started!' }]);
     };
 
-    const handleGameUpdate = (update) => {
-      setGameState(update.state);
-      if (update.log) {
-        setLogs((prev) => [...prev, { id: Date.now() + Math.random(), text: update.log }]);
+    const handleGameUpdate = (newState) => {
+      setGameState(newState);
+      if (newState.log && Array.isArray(newState.log)) {
+        setLogs(newState.log.map((l) => ({ id: l.time, text: l.message })));
       }
-      if (update.state.winner) {
-        setGameOver(update.state.winner === playerId ? 'victory' : 'defeat');
+      if (newState.winner) {
+        setGameOver(newState.winner === playerId ? 'victory' : 'defeat');
       }
     };
 
@@ -96,13 +96,22 @@ export default function GamePage() {
     socket.on('game-start', handleGameStart);
     socket.on('game-update', handleGameUpdate);
     socket.on('game-over', handleGameOver);
+    
+    const handleError = (msg) => {
+      console.error('Server error:', msg);
+      if (msg === 'Game not found') {
+        router.push('/'); // Bounce back to lobby if the server wiped the game
+      }
+    };
+    socket.on('error', handleError);
 
     return () => {
       socket.off('game-start', handleGameStart);
       socket.off('game-update', handleGameUpdate);
       socket.off('game-over', handleGameOver);
+      socket.off('error', handleError);
     };
-  }, [socket, gameId, playerId]);
+  }, [socket, isConnected, gameId, playerId]);
 
   const handleAction = (type, payload = {}) => {
     if (!socket) return;

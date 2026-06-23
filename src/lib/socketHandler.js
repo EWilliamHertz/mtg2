@@ -123,8 +123,9 @@ export function registerSocketHandlers(io) {
               const pSocket = io.sockets.sockets.get(p.socketId);
               if (pSocket) {
                 pSocket.join(gameId);
-                pSocket.emit('game-start', { gameId, playerId: p.id });
-                pSocket.emit('game-update', engine.getState(p.id));
+                const state = engine.getState(p.id);
+                pSocket.emit('game-start', state);
+                pSocket.emit('game-update', state);
               }
             }
           } catch (error) {
@@ -142,14 +143,15 @@ export function registerSocketHandlers(io) {
     socket.on('join-game', ({ gameId, playerId }) => {
       const engine = activeGames.get(gameId);
       if (engine) {
-        const player = engine.players.find(p => p.id === playerId);
+        const player = engine.state.players.find(p => p.id === playerId);
         if (player) {
           player.socketId = socket.id;
           playerSockets.set(socket.id, { playerId, gameId });
           socket.join(gameId);
           // Send both the initial game-start and current game state
-          socket.emit('game-start', { gameId, playerId });
-          socket.emit('game-update', engine.getState(playerId));
+          const state = engine.getState(playerId);
+          socket.emit('game-start', state);
+          socket.emit('game-update', state);
         } else {
           socket.emit('error', 'Player not found in game');
         }
@@ -169,7 +171,7 @@ export function registerSocketHandlers(io) {
         try {
           const success = engine.handleAction(playerId, { type, ...payload });
           if (success) {
-            for (const p of engine.players) {
+            for (const p of engine.state.players) {
               const pSocket = io.sockets.sockets.get(p.socketId);
               if (pSocket) {
                 pSocket.emit('game-update', engine.getState(p.id));
@@ -196,7 +198,7 @@ export function registerSocketHandlers(io) {
     socket.on('rejoin-game', ({ gameId, playerId }) => {
       const engine = activeGames.get(gameId);
       if (engine) {
-        const player = engine.players.find(p => p.id === playerId);
+        const player = engine.state.players.find(p => p.id === playerId);
         if (player) {
           player.socketId = socket.id;
           player.disconnected = false;
@@ -225,7 +227,7 @@ export function registerSocketHandlers(io) {
         const { playerId, gameId } = info;
         const engine = activeGames.get(gameId);
         if (engine) {
-          const player = engine.players.find(p => p.id === playerId);
+          const player = engine.state.players.find(p => p.id === playerId);
           if (player) {
             player.disconnected = true;
             player.disconnectTimeout = setTimeout(() => {
