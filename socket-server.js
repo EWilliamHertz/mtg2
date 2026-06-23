@@ -7,6 +7,16 @@
 import 'dotenv/config';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+
+// Check for required env vars before importing handlers
+if (!process.env.DATABASE_URL) {
+  console.error('❌ ERROR: DATABASE_URL is not set');
+  process.exit(1);
+}
+
+console.log('✓ Environment variables loaded');
+console.log(`✓ DATABASE_URL: ${process.env.DATABASE_URL.substring(0, 50)}...`);
+
 import { registerSocketHandlers } from './src/lib/socketHandler.js';
 
 const port = process.env.PORT || process.env.SOCKET_PORT || 3001;
