@@ -35,7 +35,7 @@ function BottomingInterface({ hand, count, onConfirm, styles }) {
               cursor: 'pointer'
             }}
           >
-            <img src={card.imageUrl || 'https://upload.wikimedia.org/wikipedia/en/a/aa/Magic_the_gathering_card_back.jpg'} alt={card.name || 'Card'} style={{width: '100%', borderRadius: 8}} />
+            <img src={card.image_uri || 'https://upload.wikimedia.org/wikipedia/en/a/aa/Magic_the_gathering_card_back.jpg'} alt={card.name || 'Card'} style={{width: '100%', borderRadius: 8}} />
           </div>
         ))}
       </div>
@@ -74,7 +74,11 @@ function GameContent() {
     const handleGameStart = (data) => {
       const state = data.state || data;
       setGameState(state);
-      if (state.players[playerId]?.needsMulliganDecision) {
+      // players is an array; find our player by id
+      const me = Array.isArray(state.players)
+        ? state.players.find(p => p.id === playerId)
+        : null;
+      if (state.phase === 'mulligan' && me && !me.hasKeptHand) {
         setMulliganState('decision');
       }
       setLogs((prev) => [...prev, { id: Date.now(), text: 'Game started!' }]);
@@ -84,6 +88,15 @@ function GameContent() {
       setGameState(newState);
       if (newState.log && Array.isArray(newState.log)) {
         setLogs(newState.log.map((l) => ({ id: l.time, text: l.message })));
+      }
+      // Auto-detect mulligan phase from state
+      const me = Array.isArray(newState.players)
+        ? newState.players.find(p => p.id === playerId)
+        : null;
+      if (newState.phase === 'mulligan' && me && !me.hasKeptHand) {
+        setMulliganState('decision');
+      } else if (newState.phase !== 'mulligan') {
+        setMulliganState(null);
       }
       if (newState.winner) {
         setGameOver(newState.winner === playerId ? 'victory' : 'defeat');
@@ -119,13 +132,13 @@ function GameContent() {
     socket.emit('game-action', { gameId, playerId, type, ...payload });
   };
 
-  const playCard = (cardInstanceId) => {
-    handleAction('play-card', { cardInstanceId });
+  const playCard = (instanceId) => {
+    handleAction('play-card', { instanceId });
     setSelectedCard(null);
   };
 
-  const tapLand = (cardInstanceId) => {
-    handleAction('tap-land', { cardInstanceId });
+  const tapLand = (instanceId) => {
+    handleAction('tap-land', { instanceId });
   };
 
   const nextPhase = () => {
@@ -163,16 +176,27 @@ function GameContent() {
   };
 
   const handleMulligan = (keep) => {
-    handleAction('mulligan-decision', { keep });
     if (keep) {
-      setMulliganState('bottoming');
+      const me = Array.isArray(gameState.players)
+        ? gameState.players.find(p => p.id === playerId)
+        : null;
+      if (me && me.mulliganCount > 0) {
+        // Need to select cards to put on bottom
+        setMulliganState('bottoming');
+      } else {
+        // No cards to bottom, just keep
+        handleAction('mulligan-keep', {});
+        setMulliganState(null);
+      }
     } else {
-      setMulliganState('waiting');
+      handleAction('mulligan-mulligan', {});
+      // Stay in decision after re-draw
+      setMulliganState('decision');
     }
   };
 
   const handlePutOnBottom = (cardInstanceIds) => {
-    handleAction('mulligan-bottom', { cardInstanceIds });
+    handleAction('mulligan-keep', { bottomCards: cardInstanceIds });
     setMulliganState(null);
   };
 
@@ -181,9 +205,11 @@ function GameContent() {
   }
 
   const is1v1 = gameState.mode === '1v1';
-  const playerState = gameState.players[playerId] || Object.values(gameState.players).find(p => p.id === playerId);
-  const opponentId = Object.keys(gameState.players).find((id) => gameState.players[id].id !== playerId);
-  const opponentState = opponentId ? gameState.players[opponentId] : null;
+  const playersArr = Array.isArray(gameState.players) ? gameState.players : Object.values(gameState.players);
+  const playerState = playersArr.find(p => p.id === playerId);
+  const opponentState = playersArr.find(p => p.id !== playerId) || null;
+  // activePlayer is an index in the engine; derive the actual player ID for UI checks
+  const activePlayerId = playersArr[gameState.activePlayer]?.id;
 
   if (gameState.phase === 'sideboarding') {
     return (
@@ -208,7 +234,7 @@ function GameContent() {
   return (
     <div className={styles.container}>
       <div className={styles.leftSidebar}>
-        <PhaseTracker currentPhase={gameState.phase} activePlayerId={gameState.activePlayerId} playerId={playerId} />
+        <PhaseTracker currentPhase={gameState.phase} activePlayerId={activePlayerId} playerId={playerId} />
       </div>
 
       <div className={styles.mainArea}>
@@ -240,7 +266,7 @@ function GameContent() {
             <Battlefield 
               cards={playerState.battlefield} 
               onCardClick={(card) => {
-                if (gameState.phase === 'combat_attackers' && gameState.activePlayerId === playerId) {
+                if (gameState.phase === 'combat_attackers' && activePlayerId === playerId) {
                   toggleAttacker(card.instanceId);
                 } else if (card.type_line && card.type_line.includes('Land')) {
                   tapLand(card.instanceId);
@@ -294,11 +320,11 @@ function GameContent() {
         <div className={styles.turnControls}>
           <button className={styles.button} onClick={nextPhase}>Next Phase</button>
           
-          {gameState.phase === 'combat_attackers' && gameState.activePlayerId === playerId && (
+          {gameState.phase === 'combat_attackers' && activePlayerId === playerId && (
             <button className={styles.button} onClick={confirmAttackers}>Confirm Attackers</button>
           )}
 
-          {gameState.phase === 'combat_blockers' && gameState.activePlayerId !== playerId && is1v1 && (
+          {gameState.phase === 'combat_blockers' && activePlayerId !== playerId && is1v1 && (
             <button className={styles.button} onClick={confirmBlockers}>Confirm Blockers</button>
           )}
 
@@ -326,7 +352,7 @@ function GameContent() {
             <div className={styles.mulliganHand}>
               {playerState.hand.map(card => (
                 <div key={card.instanceId} style={{width: 150}}>
-                  <img src={card.imageUrl || 'https://upload.wikimedia.org/wikipedia/en/a/aa/Magic_the_gathering_card_back.jpg'} alt={card.name || 'Card'} style={{width: '100%', borderRadius: 8}} />
+                  <img src={card.image_uri || 'https://upload.wikimedia.org/wikipedia/en/a/aa/Magic_the_gathering_card_back.jpg'} alt={card.name || 'Card'} style={{width: '100%', borderRadius: 8}} />
                 </div>
               ))}
             </div>
@@ -360,7 +386,7 @@ function GameContent() {
             <div className={styles.mulliganHand}>
               {playerState.hand.map(card => (
                 <div key={card.instanceId} style={{width: 150}} onClick={() => handleAction('discard', { cardInstanceId: card.instanceId })}>
-                  <img src={card.imageUrl || 'https://upload.wikimedia.org/wikipedia/en/a/aa/Magic_the_gathering_card_back.jpg'} alt={card.name || 'Card'} style={{width: '100%', borderRadius: 8, cursor: 'pointer'}} />
+                  <img src={card.image_uri || 'https://upload.wikimedia.org/wikipedia/en/a/aa/Magic_the_gathering_card_back.jpg'} alt={card.name || 'Card'} style={{width: '100%', borderRadius: 8, cursor: 'pointer'}} />
                 </div>
               ))}
             </div>
