@@ -103,9 +103,26 @@ export function registerSocketHandlers(io) {
               const mainDeck = [];
               const sideboard = [];
               for (const row of res.rows) {
+                const cardData = {
+                  scryfall_id: row.scryfall_id,
+                  card_id: row.card_id,
+                  name: row.name,
+                  mana_cost: row.mana_cost,
+                  cmc: row.cmc,
+                  type_line: row.type_line,
+                  oracle_text: row.oracle_text,
+                  power: row.power,
+                  toughness: row.toughness,
+                  colors: row.colors,
+                  color_identity: row.color_identity,
+                  keywords: row.keywords,
+                  rarity: row.rarity,
+                  image_uri: row.image_uri,
+                  quantity: row.quantity
+                };
                 for (let i = 0; i < row.quantity; i++) {
-                  if (row.is_sideboard) sideboard.push(row);
-                  else mainDeck.push(row);
+                  if (row.is_sideboard) sideboard.push(cardData);
+                  else mainDeck.push(cardData);
                 }
               }
               p.deck = mainDeck;
