@@ -165,14 +165,17 @@ export function registerSocketHandlers(io) {
           player.socketId = socket.id;
           playerSockets.set(socket.id, { playerId, gameId });
           socket.join(gameId);
+          console.log(`✓ Player ${playerId} joined game ${gameId} on socket ${socket.id.substring(0, 8)}`);
           // Send both the initial game-start and current game state
           const state = engine.getState(playerId);
           socket.emit('game-start', { gameId, playerId, state });
           socket.emit('game-update', state);
         } else {
+          console.warn(`❌ Player ${playerId} not found in game ${gameId}`);
           socket.emit('error', 'Player not found in game');
         }
       } else {
+        console.warn(`❌ Game ${gameId} not found in activeGames`);
         socket.emit('error', 'Game not found');
       }
     });
@@ -185,33 +188,50 @@ export function registerSocketHandlers(io) {
       const type = data.type;
       
       const info = playerSockets.get(socket.id);
-      if (!info) return;
+      if (!info) {
+        console.warn(`⚠️  Game action from unknown socket: ${socket.id} for ${type}`);
+        socket.emit('error', 'Socket not registered. Rejoin game.');
+        return;
+      }
       
       const engine = activeGames.get(gameId);
-      if (engine) {
-        try {
-          const success = engine.handleAction(playerId, data);
-          if (success) {
-            for (const p of engine.state.players) {
-              const pSocket = io.sockets.sockets.get(p.socketId);
-              if (pSocket) {
-                pSocket.emit('game-update', engine.getState(p.id));
-              }
+      if (!engine) {
+        console.warn(`⚠️  Game action for unknown game: ${gameId}`);
+        socket.emit('error', 'Game not found');
+        return;
+      }
+
+      try {
+        const result = engine.handleAction(playerId, data);
+        
+        // Check if action was successful (result is { success: true/false, ... })
+        if (result && result.success === true) {
+          console.log(`✓ Action ${type} succeeded for player ${playerId}`);
+          for (const p of engine.state.players) {
+            const pSocket = io.sockets.sockets.get(p.socketId);
+            if (pSocket) {
+              pSocket.emit('game-update', engine.getState(p.id));
             }
-            if (engine.isGameOver()) {
-              io.to(gameId).emit('game-over');
-              activeGames.delete(gameId);
-              for (const [id, lobby] of lobbies.entries()) {
-                if (lobby.gameId === gameId) {
-                  lobbies.delete(id);
-                  break;
-                }
+          }
+          if (engine.isGameOver()) {
+            io.to(gameId).emit('game-over');
+            activeGames.delete(gameId);
+            for (const [id, lobby] of lobbies.entries()) {
+              if (lobby.gameId === gameId) {
+                lobbies.delete(id);
+                break;
               }
             }
           }
-        } catch (error) {
-          socket.emit('error', error.message);
+        } else {
+          // Action failed
+          const errorMsg = result?.error || `Action ${type} failed`;
+          console.warn(`❌ Action failed: ${errorMsg}`);
+          socket.emit('error', errorMsg);
         }
+      } catch (error) {
+        console.error(`💥 Error handling action ${type}:`, error.message);
+        socket.emit('error', error.message);
       }
     });
 

@@ -664,6 +664,16 @@ export class GameEngine {
           this.advancePhase();
           return { success: true };
 
+        case 'next-phase':
+        case 'pass-priority':
+          // In a single-player game or when it's your turn, advance to next phase
+          if (this.state.activePlayer === playerIndex || this.state.mode === '1v0') {
+            this.advancePhase();
+            this.log(`${player.name} passes priority.`);
+            return { success: true };
+          }
+          return { success: false, error: 'Not your turn' };
+
         default:
           return { success: false, error: 'Unknown action type' };
       }
