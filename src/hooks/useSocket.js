@@ -7,7 +7,14 @@ export function useSocket() {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    socketRef.current = io();
+    // Connect to external socket server (or localhost for dev)
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
+    socketRef.current = io(socketUrl, {
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 5
+    });
     socketRef.current.on('connect', () => setIsConnected(true));
     socketRef.current.on('disconnect', () => setIsConnected(false));
     return () => socketRef.current?.disconnect();
