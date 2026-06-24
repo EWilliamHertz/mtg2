@@ -417,6 +417,31 @@ function ActivatedAbilitiesModal({ card, onConfirm, onCancel, tapLand }) {
   );
 }
 
+// ─── Sandbox Override Menu ────────────────────────────────────
+function SandboxMenu({ onAction, onClose }) {
+  return (
+    <div className={styles.altCostModal}>
+      <h2 className={styles.modalTitle}>🛠 Manual Override</h2>
+      <p className={styles.modalSubtitle}>Use this if the rules engine gets stuck.</p>
+      <div className={styles.altCostOptions} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <button className={styles.secondaryBtn} onClick={() => onAction('add-life', { amount: 1 })}>+1 Life</button>
+        <button className={styles.secondaryBtn} onClick={() => onAction('remove-life', { amount: 1 })}>-1 Life</button>
+        <button className={styles.secondaryBtn} onClick={() => onAction('draw-card')}>Draw Card</button>
+        <button className={styles.secondaryBtn} onClick={() => onAction('untap-all')}>Untap All</button>
+        
+        {['W','U','B','R','G','C'].map(c => (
+          <button key={c} className={styles.secondaryBtn} onClick={() => onAction('add-mana', { color: c })}>
+            +1 {c} Mana
+          </button>
+        ))}
+      </div>
+      <div className={styles.btnRow}>
+        <button className={styles.cancelBtn} onClick={onClose}>Close</button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Game Component ───────────────────────────────────────
 function GameContent() {
   const searchParams = useSearchParams();
@@ -442,6 +467,8 @@ function GameContent() {
   const [altCostCard, setAltCostCard] = useState(null);
   // Activated abilities modal
   const [activatedAbilityCard, setActivatedAbilityCard] = useState(null);
+  // Sandbox mode
+  const [showSandbox, setShowSandbox] = useState(false);
 
   // ── Hover preview ──────────────────────────────────────────
   const handleGlobalHover = useCallback((card) => {
@@ -863,6 +890,9 @@ function GameContent() {
           <button className={`${styles.button} ${styles.buttonConcede}`} onClick={concede}>
             Concede
           </button>
+          <button className={styles.secondaryBtn} style={{ marginTop: 8 }} onClick={() => setShowSandbox(true)}>
+            🛠 Dev Actions
+          </button>
         </div>
       </div>
 
@@ -1069,6 +1099,16 @@ function GameContent() {
           <ShowAndTellModal
             hand={playerState.hand}
             onConfirm={(id) => handleAction('resolve-show-and-tell', { permanentInstanceId: id })}
+          />
+        </div>
+      )}
+
+      {/* Sandbox Menu */}
+      {showSandbox && (
+        <div className={styles.overlay}>
+          <SandboxMenu
+            onAction={(actionType, payload) => handleAction('sandbox-action', { actionType, ...payload })}
+            onClose={() => setShowSandbox(false)}
           />
         </div>
       )}

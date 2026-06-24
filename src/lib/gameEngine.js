@@ -1239,9 +1239,18 @@ export class GameEngine {
               if (!valid) throw new Error(`Must find: ${player.searchCriteria.join(' or ')}`);
             }
             player.library.splice(cIdx, 1);
-            found.tapped = false;
+            found.tapped = found.engineMetadata?.entersTapped || false;
             player.battlefield.push(found);
-            this.addLog(`${player.name} fetches ${found.name}.`);
+            
+            // ETB Surveil
+            if (found.engineMetadata?.etbEffects?.some(e => e.type === 'SURVEIL')) {
+              if (player.library.length > 0) {
+                player.isSurveiling = true;
+                player.surveilCard = player.library[player.library.length - 1];
+              }
+            }
+
+            this.addLog(`${player.name} fetches ${found.name}${found.tapped ? ' (tapped)' : ''}.`);
           } else {
             this.addLog(`${player.name} fails to find.`);
           }
@@ -1359,6 +1368,19 @@ export class GameEngine {
             return { success: true };
           }
           return { success: false, error: 'Not your turn' };
+        }
+
+        case 'sandbox-action': {
+          if (action.actionType === 'add-life') player.life += action.amount || 1;
+          else if (action.actionType === 'remove-life') player.life -= action.amount || 1;
+          else if (action.actionType === 'add-mana') player.manaPool[action.color] = (player.manaPool[action.color] || 0) + 1;
+          else if (action.actionType === 'remove-mana') player.manaPool[action.color] = Math.max(0, (player.manaPool[action.color] || 0) - 1);
+          else if (action.actionType === 'draw-card') this.drawCards(playerIndex, 1);
+          else if (action.actionType === 'untap-all') player.battlefield.forEach(c => c.tapped = false);
+          else throw new Error(`Unknown sandbox action: ${action.actionType}`);
+
+          this.addLog(`${player.name} used Override: ${action.actionType}`);
+          return { success: true };
         }
 
         default:
