@@ -667,6 +667,18 @@ export class GameEngine {
           break;
         }
 
+        case 'MURKTIDE_COUNTERS': {
+          const bfCards = player.battlefield.filter(c => c.name === sourceName);
+          if (bfCards.length > 0) {
+            const card = bfCards[bfCards.length - 1];
+            card.counters = card.counters || {};
+            // Fake delve for now
+            card.counters['+1/+1'] = (card.counters['+1/+1'] || 0) + 3;
+            this.addLog(`${card.name} enters with 3 +1/+1 counters (Delve simulation).`);
+          }
+          break;
+        }
+
         default:
           this.addLog(`[Unimplemented effect: ${effect.type}]`);
       }
@@ -938,6 +950,21 @@ export class GameEngine {
             };
             this.state.stack.push(stackEntry);
             this.addLog(`${player.name} casts ${card.name}. (on stack)`);
+
+            // Process cast triggers
+            const isNonCreature = !card.type_line?.includes('Creature');
+            player.battlefield.forEach(bfCard => {
+              const castTriggers = bfCard.engineMetadata?.castTriggers || [];
+              castTriggers.forEach(t => {
+                if (t.type === 'SURVEIL' && t.condition === 'NONCREATURE' && isNonCreature) {
+                  if (player.library.length > 0) {
+                    player.isSurveiling = true;
+                    player.surveilCard = player.library[player.library.length - 1];
+                    this.addLog(`${bfCard.name} triggers Surveil ${t.amount}.`);
+                  }
+                }
+              });
+            });
           }
           return { success: true };
         }
@@ -990,7 +1017,7 @@ export class GameEngine {
               .map(iid => player.ponderCards.find(c => c.instanceId === iid))
               .filter(Boolean);
             // Push so ordered[last] is at top (pop position)
-            player.library.push(...ordered.reverse());
+            player.library.push(...ordered);
             this.addLog(`${player.name} arranges the top cards of their library.`);
           }
 

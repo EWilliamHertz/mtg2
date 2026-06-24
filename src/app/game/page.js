@@ -371,6 +371,7 @@ function ShowAndTellModal({ hand, onConfirm }) {
 function ActivatedAbilitiesModal({ card, onConfirm, onCancel, tapLand }) {
   const abilities = card?.engineMetadata?.activatedAbilities || [];
   const isLand = card?.type_line?.includes('Land');
+  const isFetch = card?.engineMetadata?.isFetchLand;
   
   if (abilities.length === 0 && !isLand) return null;
 
@@ -380,7 +381,7 @@ function ActivatedAbilitiesModal({ card, onConfirm, onCancel, tapLand }) {
       <div className={styles.altCostOptions}>
         {isLand && (
           <button className={styles.altCostBtn} onClick={tapLand}>
-            💧 Tap for Mana
+            {isFetch ? 'Pay 1 life, Sacrifice: Fetch Land' : 'Tap for Mana'}
           </button>
         )}
         {abilities.map(ab => (
@@ -800,7 +801,7 @@ function GameContent() {
           />
         </div>
         <div className={styles.sidebarSection}>
-          <ManaPool mana={playerState.manaPool} />
+          <ManaPool manaPool={playerState.manaPool} />
         </div>
         <div className={styles.sidebarSection}>
           <div className={styles.zones}>

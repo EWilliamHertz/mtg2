@@ -19,7 +19,7 @@ export default function GameLog({ logs = [] }) {
         <div className={styles.logEntry}>No events yet.</div>
       ) : (
         logs.map((log, i) => {
-          const message = typeof log === 'string' ? log : log.message;
+          const message = typeof log === 'string' ? log : (log.text || log.message);
           const timestamp = typeof log === 'object' ? log.timestamp : null;
 
           return (
