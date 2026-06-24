@@ -1,31 +1,46 @@
+/* ============================================================
+   game/page.module.css  –  Full Phase 1-4 upgrade
+   Dark glassmorphism / neon-accent aesthetic
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cinzel:wght@700&display=swap');
+
+/* ── Root layout ─────────────────────────────────────────── */
 .container {
   display: flex;
   height: 100vh;
-  background-color: #121212;
-  color: #fff;
+  background: radial-gradient(ellipse at 20% 50%, #0d1b2a 0%, #0a0e1a 60%, #000 100%);
+  color: #e2e8f0;
   font-family: 'Inter', sans-serif;
   overflow: hidden;
+  position: relative;
 }
 
+/* ── Left sidebar ────────────────────────────────────────── */
 .leftSidebar {
-  width: 150px;
-  background-color: #1e1e1e;
-  border-right: 1px solid #333;
-  padding: 10px;
+  width: 140px;
+  background: rgba(255,255,255,0.03);
+  border-right: 1px solid rgba(255,255,255,0.07);
+  padding: 12px 8px;
   display: flex;
   flex-direction: column;
+  gap: 4px;
+  backdrop-filter: blur(8px);
 }
 
+/* ── Main area ───────────────────────────────────────────── */
 .mainArea {
   flex: 1;
   display: flex;
   flex-direction: column;
   position: relative;
+  overflow: hidden;
 }
 
+/* ── Opponent zone ───────────────────────────────────────── */
 .opponentZone {
-  flex: 0 0 30%;
-  border-bottom: 1px solid #333;
+  flex: 0 0 38%;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
   padding: 10px;
   display: flex;
   flex-direction: column;
@@ -35,30 +50,43 @@
 .opponentStats {
   position: absolute;
   top: 10px;
-  right: 10px;
-  background: rgba(0, 0, 0, 0.5);
-  border-radius: 8px;
-  padding: 5px;
+  right: 14px;
+  background: rgba(0,0,0,0.6);
+  border-radius: 12px;
+  padding: 6px 10px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.1);
+  z-index: 5;
 }
 
 .opponentHand {
   display: flex;
-  gap: -30px;
-  padding: 10px;
+  gap: -28px;
+  padding: 8px;
   overflow-x: auto;
   justify-content: center;
+  align-items: center;
+}
+
+.handCount {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-right: 10px;
 }
 
 .cardBack {
-  width: 60px;
-  height: 84px;
+  width: 54px;
+  height: 76px;
   background: url('https://upload.wikimedia.org/wikipedia/en/a/aa/Magic_the_gathering_card_back.jpg') center/cover;
   border-radius: 4px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.5);
-  border: 1px solid #000;
-  margin-right: -30px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+  border: 1px solid #111;
+  margin-right: -26px;
+  transition: transform 0.15s;
 }
+.cardBack:hover { transform: translateY(-4px); }
 
+/* ── Player zone ─────────────────────────────────────────── */
 .playerZone {
   flex: 1;
   display: flex;
@@ -71,27 +99,45 @@
   flex: 1;
   overflow-y: auto;
   padding: 10px;
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 8px;
+  background: rgba(255,255,255,0.015);
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.05);
 }
 
 .handWrapper {
-  flex: 0 0 150px;
-  border-top: 1px solid #333;
+  flex: 0 0 155px;
+  border-top: 1px solid rgba(255,255,255,0.07);
   padding-top: 10px;
 }
 
+/* ── Right sidebar ───────────────────────────────────────── */
 .rightSidebar {
-  width: 300px;
-  background-color: #1e1e1e;
-  border-left: 1px solid #333;
+  width: 260px;
+  background: rgba(255,255,255,0.025);
+  border-left: 1px solid rgba(255,255,255,0.07);
   display: flex;
   flex-direction: column;
+  backdrop-filter: blur(8px);
 }
 
 .sidebarSection {
-  padding: 10px;
-  border-bottom: 1px solid #333;
+  padding: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.turnHeading {
+  font-family: 'Cinzel', serif;
+  font-size: 16px;
+  color: #c9a84c;
+  text-align: center;
+  margin: 0 0 4px;
+}
+
+.turnIndicator {
+  text-align: center;
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 500;
 }
 
 .gameLogWrapper {
@@ -100,165 +146,616 @@
 }
 
 .turnControls {
-  padding: 10px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
-.button {
-  background-color: #4a90e2;
-  color: white;
-  border: none;
-  padding: 10px;
-  border-radius: 4px;
+/* ── Zone buttons ────────────────────────────────────────── */
+.zones { display: flex; gap: 8px; }
+
+.zoneButton {
+  flex: 1;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #cbd5e1;
+  padding: 7px;
+  border-radius: 6px;
   cursor: pointer;
-  font-weight: bold;
-  transition: background-color 0.2s;
+  font-size: 11px;
+  font-weight: 600;
+  transition: all 0.18s;
+}
+.zoneButton:hover {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.25);
+  color: #fff;
 }
 
+/* ── Generic buttons ─────────────────────────────────────── */
+.button {
+  background: rgba(74, 144, 226, 0.2);
+  color: #93c5fd;
+  border: 1px solid rgba(74, 144, 226, 0.4);
+  padding: 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 12px;
+  transition: all 0.18s;
+}
 .button:hover {
-  background-color: #357abd;
+  background: rgba(74, 144, 226, 0.35);
+  border-color: #4a90e2;
+  color: #fff;
 }
-
 .button:disabled {
-  background-color: #555;
-  color: #888;
+  opacity: 0.35;
   cursor: not-allowed;
 }
 
 .buttonPass {
-  background-color: #e67e22;
+  background: rgba(234, 88, 12, 0.2);
+  color: #fdba74;
+  border-color: rgba(234, 88, 12, 0.4);
 }
-
-.buttonPass:hover {
-  background-color: #d35400;
-}
+.buttonPass:hover { background: rgba(234, 88, 12, 0.35); color: #fff; }
 
 .buttonConcede {
-  background-color: #e74c3c;
+  background: rgba(220, 38, 38, 0.15);
+  color: #fca5a5;
+  border-color: rgba(220, 38, 38, 0.35);
 }
+.buttonConcede:hover { background: rgba(220, 38, 38, 0.3); color: #fff; }
 
-.buttonConcede:hover {
-  background-color: #c0392b;
+/* Primary / secondary / cancel / resolve */
+.primaryBtn {
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  color: #fff;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 13px;
+  transition: all 0.18s;
+  box-shadow: 0 4px 12px rgba(99,102,241,0.4);
 }
+.primaryBtn:hover { filter: brightness(1.15); transform: translateY(-1px); }
+.primaryBtn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
+.secondaryBtn {
+  background: rgba(255,255,255,0.07);
+  color: #cbd5e1;
+  border: 1px solid rgba(255,255,255,0.15);
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.18s;
+}
+.secondaryBtn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+
+.cancelBtn {
+  background: rgba(239,68,68,0.15);
+  color: #fca5a5;
+  border: 1px solid rgba(239,68,68,0.3);
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.18s;
+}
+.cancelBtn:hover { background: rgba(239,68,68,0.3); color: #fff; }
+
+.resolveBtn {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  border: none;
+  padding: 9px 14px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 12px;
+  transition: all 0.18s;
+  box-shadow: 0 3px 10px rgba(16,185,129,0.4);
+}
+.resolveBtn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+
+/* ── Overlays and modals ─────────────────────────────────── */
 .overlay {
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.8);
+  inset: 0;
+  background: rgba(0,0,10,0.82);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
+  backdrop-filter: blur(4px);
+  animation: fadein 0.2s ease;
 }
+
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
 
 .modal {
-  background: #2a2a2a;
-  padding: 20px;
-  border-radius: 8px;
+  background: linear-gradient(160deg, #1a2035 0%, #111827 100%);
+  padding: 28px;
+  border-radius: 16px;
   text-align: center;
-  max-width: 800px;
-  width: 100%;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  max-width: 820px;
+  width: 96%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.08);
+  animation: slideup 0.25s ease;
 }
 
-.mulliganHand {
+@keyframes slideup {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.sideboardModal {
+  background: linear-gradient(160deg, #1a2035 0%, #111827 100%);
+  padding: 32px;
+  border-radius: 16px;
+  text-align: center;
+  max-width: 480px;
+  width: 96%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+}
+
+.modalTitle {
+  font-family: 'Cinzel', serif;
+  font-size: 22px;
+  color: #f1c40f;
+  margin: 0 0 8px;
+  text-shadow: 0 0 20px rgba(241,196,15,0.4);
+}
+
+.modalSubtitle {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-bottom: 16px;
+}
+
+.modalBody { padding: 8px 0; }
+
+.accent { color: #60a5fa; font-weight: 700; }
+
+.mulliganCount {
+  background: rgba(96,165,250,0.15);
+  color: #60a5fa;
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+/* ── Card rows & selection ───────────────────────────────── */
+.cardRow {
   display: flex;
   gap: 10px;
   overflow-x: auto;
-  margin: 20px 0;
-  padding: 10px;
-  justify-content: center;
-}
-
-.goldfishBanner {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: rgba(255, 215, 0, 0.1);
-  color: gold;
-  padding: 20px 40px;
-  border-radius: 20px;
-  border: 1px solid gold;
-  text-align: center;
-}
-
-.zones {
-  display: flex;
-  gap: 10px;
-}
-
-.zoneButton {
-  flex: 1;
-  background: #333;
-  border: 1px solid #444;
-  color: white;
+  margin: 12px 0;
   padding: 8px;
-  border-radius: 4px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.mulliganCardWrap {
+  width: 140px;
+  flex-shrink: 0;
+}
+.mulliganCardWrap img {
+  width: 100%;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+}
+
+.selCard {
+  position: relative;
+  width: 110px;
+  flex-shrink: 0;
   cursor: pointer;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: all 0.18s;
+  border: 2px solid transparent;
+}
+.selCard img { width: 100%; display: block; border-radius: 8px; }
+.selCard:hover { transform: translateY(-4px) scale(1.03); }
+
+.selCardActive {
+  border-color: #60a5fa;
+  box-shadow: 0 0 18px rgba(96,165,250,0.6);
+}
+.selCardValid {
+  border-color: #4ade80;
+}
+.selCardDim {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.selBadge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: #3b82f6;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 10px rgba(59,130,246,0.8);
+}
+
+.btnRow {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+/* ── Ponder modal ────────────────────────────────────────── */
+.ponderModal {
+  position: relative;
+  background: linear-gradient(160deg, #1a1f3a 0%, #0f1322 100%);
+  padding: 28px;
+  border-radius: 18px;
   text-align: center;
-  font-weight: bold;
-  transition: background-color 0.2s;
+  max-width: 640px;
+  width: 96%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.8), 0 0 0 1px rgba(139,92,246,0.3);
+  overflow: hidden;
+  animation: slideup 0.25s ease;
 }
 
-.zoneButton:hover {
-  background: #444;
+.ponderGlow {
+  position: absolute;
+  top: -60px; left: 50%;
+  transform: translateX(-50%);
+  width: 300px; height: 120px;
+  background: radial-gradient(ellipse, rgba(139,92,246,0.35) 0%, transparent 70%);
+  pointer-events: none;
 }
 
+.ponderRow {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  padding: 16px 0;
+}
+
+.ponderCard {
+  position: relative;
+  width: 130px;
+  cursor: grab;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: transform 0.15s;
+  border: 2px solid rgba(139,92,246,0.4);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+}
+.ponderCard:hover { transform: translateY(-6px); border-color: #a78bfa; }
+.ponderCard:active { cursor: grabbing; }
+.ponderCard img { width: 100%; display: block; }
+
+.ponderLabel {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: rgba(0,0,0,0.75);
+  color: #c4b5fd;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px;
+  text-align: center;
+}
+
+/* ── Brainstorm modal ────────────────────────────────────── */
+.brainstormModal {
+  position: relative;
+  background: linear-gradient(160deg, #0f2027, #203a43, #2c5364);
+  padding: 28px;
+  border-radius: 18px;
+  text-align: center;
+  max-width: 680px;
+  width: 96%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.8), 0 0 0 1px rgba(56,189,248,0.25);
+  overflow: hidden;
+  animation: slideup 0.25s ease;
+}
+
+.brainstormGlow {
+  position: absolute;
+  top: -60px; left: 50%;
+  transform: translateX(-50%);
+  width: 350px; height: 120px;
+  background: radial-gradient(ellipse, rgba(56,189,248,0.3) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* ── Delver reveal modal ─────────────────────────────────── */
+.delverModal {
+  position: relative;
+  background: linear-gradient(160deg, #1f1203, #3d1a0a);
+  padding: 28px;
+  border-radius: 18px;
+  text-align: center;
+  max-width: 560px;
+  width: 96%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.8), 0 0 0 1px rgba(251,146,60,0.3);
+  overflow: hidden;
+  animation: slideup 0.25s ease;
+}
+
+.delverGlow {
+  position: absolute;
+  top: -60px; left: 50%;
+  transform: translateX(-50%);
+  width: 300px; height: 120px;
+  background: radial-gradient(ellipse, rgba(251,146,60,0.3) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.delverReveal {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  justify-content: center;
+  margin: 16px 0;
+}
+
+.delverCard {
+  width: 160px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 2px solid rgba(251,146,60,0.4);
+  transition: all 0.3s;
+}
+.delverCard img { width: 100%; display: block; }
+
+.delverFlip {
+  border-color: #f59e0b;
+  box-shadow: 0 0 30px rgba(245,158,11,0.6);
+  animation: flipGlow 0.6s ease;
+}
+@keyframes flipGlow {
+  0%   { box-shadow: 0 0 5px rgba(245,158,11,0.2); }
+  50%  { box-shadow: 0 0 50px rgba(245,158,11,0.9); }
+  100% { box-shadow: 0 0 30px rgba(245,158,11,0.6); }
+}
+
+.delverResult { text-align: left; max-width: 220px; }
+.delverResult p { font-size: 13px; color: #cbd5e1; margin: 4px 0; }
+
+.transformBadge {
+  display: inline-block;
+  background: linear-gradient(90deg, #f59e0b, #ef4444);
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  margin-bottom: 8px;
+  box-shadow: 0 0 14px rgba(245,158,11,0.6);
+}
+
+.noFlipBadge {
+  display: inline-block;
+  background: rgba(148,163,184,0.15);
+  color: #94a3b8;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  margin-bottom: 8px;
+  border: 1px solid rgba(148,163,184,0.2);
+}
+
+/* ── Alternate cost modal ────────────────────────────────── */
+.altCostModal {
+  background: linear-gradient(160deg, #1a2035 0%, #111827 100%);
+  padding: 28px;
+  border-radius: 16px;
+  text-align: center;
+  max-width: 640px;
+  width: 96%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.08);
+  animation: slideup 0.25s ease;
+}
+
+.altCostOptions { display: flex; flex-direction: column; gap: 10px; margin: 14px 0; }
+
+.altCostBtn {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #cbd5e1;
+  padding: 12px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.18s;
+  text-align: left;
+}
+.altCostBtn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+.altCostBtnActive {
+  background: rgba(96,165,250,0.15);
+  border-color: #60a5fa;
+  color: #bfdbfe;
+}
+
+/* ── Show and Tell modal ─────────────────────────────────── */
+.satModal {
+  background: linear-gradient(160deg, #1a2035 0%, #111827 100%);
+  padding: 28px;
+  border-radius: 16px;
+  text-align: center;
+  max-width: 680px;
+  width: 96%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,215,0,0.1);
+  animation: slideup 0.25s ease;
+}
+
+/* ── Targeting mode ──────────────────────────────────────── */
+.targetBanner {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  z-index: 80;
+  background: linear-gradient(90deg, rgba(234,88,12,0.85), rgba(239,68,68,0.85));
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 13px;
+  box-shadow: 0 4px 20px rgba(239,68,68,0.4);
+  backdrop-filter: blur(6px);
+}
+
+.targetPulse {
+  display: inline-block;
+  width: 10px; height: 10px;
+  background: #fbbf24;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(251,191,36,0.6);
+  animation: pulse 1.2s infinite;
+  flex-shrink: 0;
+}
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(251,191,36,0.6); }
+  70%  { box-shadow: 0 0 0 10px rgba(251,191,36,0); }
+  100% { box-shadow: 0 0 0 0 rgba(251,191,36,0); }
+}
+
+/* ── Stack banner ────────────────────────────────────────── */
+.stackBanner {
+  position: absolute;
+  bottom: 160px; left: 50%; 
+  transform: translateX(-50%);
+  z-index: 60;
+  background: rgba(17,24,39,0.9);
+  border: 1px solid rgba(99,102,241,0.4);
+  border-radius: 10px;
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 13px;
+  color: #c7d2fe;
+  box-shadow: 0 8px 25px rgba(99,102,241,0.25);
+  backdrop-filter: blur(10px);
+  white-space: nowrap;
+}
+
+.stackCount {
+  background: #6366f1;
+  color: #fff;
+  font-weight: 800;
+  font-size: 11px;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+
+/* ── Stack overlay ───────────────────────────────────────── */
 .stackOverlay {
   position: absolute;
-  top: 50%;
-  left: 50%;
+  top: 50%; left: 50%;
   transform: translate(-50%, -50%);
   background: rgba(0,0,0,0.9);
-  padding: 20px;
-  border: 1px solid #555;
-  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid rgba(99,102,241,0.4);
+  border-radius: 12px;
   z-index: 50;
-  max-width: 400px;
+  max-width: 360px;
   width: 100%;
-  box-shadow: 0 0 20px rgba(0,0,0,0.5);
+  box-shadow: 0 0 30px rgba(99,102,241,0.2);
+  backdrop-filter: blur(12px);
 }
 
+/* ── Goldfish banner ─────────────────────────────────────── */
+.goldfishBanner {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255,215,0,0.06);
+  color: #fcd34d;
+  padding: 18px 36px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,215,0,0.25);
+  text-align: center;
+  transition: all 0.2s;
+}
+
+/* ── Victory / defeat ────────────────────────────────────── */
 .victoryModal {
-  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-  border: 2px solid #ffd700;
+  background: linear-gradient(135deg, #1e3c72, #2a5298);
+  border: 1px solid rgba(255,215,0,0.4);
+  box-shadow: 0 0 60px rgba(255,215,0,0.15);
 }
 
 .defeatModal {
-  background: linear-gradient(135deg, #4a0000 0%, #220000 100%);
-  border: 2px solid #ff4444;
-}
-/*  */
-.turnIndicator {
-  text-align: center;
-  font-size: 0.9rem;
-  color: #c9a84c;
-  font-weight: 600;
-  margin-bottom: 8px;
+  background: linear-gradient(135deg, #4a0000, #220000);
+  border: 1px solid rgba(239,68,68,0.4);
+  box-shadow: 0 0 60px rgba(239,68,68,0.15);
 }
 
+.gameOverTitle {
+  font-family: 'Cinzel', serif;
+  font-size: 52px;
+  color: #fff;
+  text-shadow: 0 0 30px rgba(255,255,255,0.5);
+  margin: 0;
+}
+
+/* ── Global card preview ─────────────────────────────────── */
 .globalCardPreview {
   position: fixed;
-  top: 50%;
-  left: 50%;
+  top: 50%; left: 50%;
   transform: translate(-50%, -50%);
   z-index: 9999;
   pointer-events: none;
-  box-shadow: 0 0 50px rgba(0,0,0,0.9);
   border-radius: 18px;
-  animation: popIn 0.2s ease-out forwards;
+  animation: popIn 0.18s ease-out forwards;
+  box-shadow: 0 0 80px rgba(0,0,0,0.9);
 }
-
 .globalCardPreview img {
-  width: 350px;
+  width: 360px;
   height: auto;
   border-radius: 18px;
 }
 
 @keyframes popIn {
-  0% { opacity: 0; transform: translate(-50%, -45%) scale(0.95); }
+  0%   { opacity: 0; transform: translate(-50%, -46%) scale(0.92); }
   100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
+
+/* ── Spell icon ──────────────────────────────────────────── */
+.spellIcon { margin-right: 6px; }
+
+/* ── Loading ─────────────────────────────────────────────── */
+.loadingScreen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  gap: 20px;
+  color: #94a3b8;
+  font-size: 14px;
+  width: 100%;
+}
+
+.loadingSpinner {
+  width: 44px; height: 44px;
+  border: 3px solid rgba(255,255,255,0.1);
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

@@ -50,6 +50,8 @@ export default function Battlefield({
                 summoningSick={permanent.summoningSick}
                 attacking={permanent.attacking}
                 blocking={permanent.blocking}
+                damage={permanent.damage}
+                counters={permanent.counters || {}}
               />
             </div>
           ))}

@@ -26,6 +26,8 @@ export default function Card({
   onMouseLeave,
   showBack = false,
   style,
+  damage = 0,
+  counters = {},
 }) {
   const [imageLoaded, setImageLoaded] = useState(false);
 
@@ -119,6 +121,25 @@ export default function Card({
               transition: 'opacity 300ms ease',
             }}
           />
+
+          {/* Damage Indicator */}
+          {damage > 0 && (
+            <div className={styles.damageBadge}>
+              🩸 {damage}
+            </div>
+          )}
+
+          {/* Counters Indicator */}
+          {counters['+1/+1'] > 0 && (
+            <div className={styles.counterBadge}>
+              +{counters['+1/+1']}/+{counters['+1/+1']}
+            </div>
+          )}
+          {counters['charge'] > 0 && (
+            <div className={styles.chargeBadge}>
+              ⚡ {counters['charge']}
+            </div>
+          )}
         </>
       )}
     </div>

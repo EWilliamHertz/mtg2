@@ -2,12 +2,18 @@
 import { v4 as uuidv4 } from 'uuid';
 import { parseCardData } from './cardParser.js';
 
+// ============================================================
+// GameEngine – Phases 1-4 implementation
+// Targeting + Stack, Ponder/Brainstorm, Alternate Costs,
+// Upkeep Triggers, Activated Abilities, Delayed End-Step Triggers
+// ============================================================
+
 export class GameEngine {
   constructor(mode, players, isBO3 = false) {
     this.state = {
       id: uuidv4(),
-      mode: mode, // '1v0' or '1v1'
-      isBO3: isBO3,
+      mode,
+      isBO3,
       gameNumber: 1,
       matchWins: { 0: 0, 1: 0 },
       matchOver: false,
@@ -15,14 +21,14 @@ export class GameEngine {
       turn: 1,
       activePlayer: 0,
       priorityPlayer: 0,
-      
-      players: players.map((p, index) => ({
-        id: p.id,
-        socketId: p.socketId,
-        name: p.name,
-        index,
-        life: 20,
-        manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+
+      players: players.map((p, index) => ({
+        id: p.id,
+        socketId: p.socketId,
+        name: p.name,
+        index,
+        life: 20,
+        manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         landsPlayedThisTurn: 0,
         maxLandsPerTurn: 1,
         deck: p.deck || p.deckCards || [],
@@ -34,25 +40,33 @@ export class GameEngine {
         exile: [],
         mulliganCount: 0,
         hasKeptHand: false,
-        sideboardReady: false
+        sideboardReady: false,
+        // Phase-2 modal states
+        isRearrangingLibrary: false,
+        ponderCards: [],
+        isBrainstorming: false,
+        brainstormData: null,
+        // Phase-4 trigger states
+        isRevealingTopCard: false,
+        revealedCard: null,
       })),
+
       virtualOpponent: mode === '1v0' ? { life: 20 } : null,
-      stack: [],
+      stack: [],            // ← Phase 1: the spell stack
+      delayedTriggers: [],  // ← Phase 4: end-step sacrifices etc.
       combatState: null,
       gameOver: false,
       winner: null,
       winReason: null,
-      log: []
+      log: [],
     };
   }
 
-  
+  // ── Library construction ────────────────────────────────────
   createLibrary(deckCards) {
-    let library = [];
+    const library = [];
     deckCards.forEach(dc => {
-      // Run the card through the parser to understand its abilities
       const parsedDc = parseCardData(dc);
-      
       library.push({
         instanceId: uuidv4(),
         cardId: parsedDc.card_id || parsedDc.scryfall_id,
@@ -68,21 +82,25 @@ export class GameEngine {
         keywords: parsedDc.keywords || [],
         rarity: parsedDc.rarity,
         image_uri: parsedDc.image_uri,
-        engineMetadata: parsedDc.engineMetadata // Inject the smart metadata
+        engineMetadata: parsedDc.engineMetadata,
       });
     });
-    // Shuffle
-    for (let i = library.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [library[i], library[j]] = [library[j], library[i]];
-    }
+    this._shuffle(library);
     return library;
   }
 
-  log(message) {
+  _shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+  }
+
+  addLog(message) {
     this.state.log.push({ time: Date.now(), message });
   }
 
+  // ── Game init ───────────────────────────────────────────────
   initGame() {
     this.state.phase = 'mulligan';
     this.state.turn = 1;
@@ -93,10 +111,8 @@ export class GameEngine {
     this.state.winReason = null;
     this.state.combatState = null;
     this.state.stack = [];
-    
-    if (this.state.mode === '1v0') {
-      this.state.virtualOpponent = { life: 20 };
-    }
+    this.state.delayedTriggers = [];
+    if (this.state.mode === '1v0') this.state.virtualOpponent = { life: 20 };
 
     this.state.players.forEach(p => {
       p.life = 20;
@@ -110,91 +126,101 @@ export class GameEngine {
       p.mulliganCount = 0;
       p.hasKeptHand = false;
       p.sideboardReady = false;
-      
-      // Draw 7
-      for (let i = 0; i < 7; i++) {
-        p.hand.push(p.library.pop());
-      }
+      p.isRearrangingLibrary = false;
+      p.ponderCards = [];
+      p.isBrainstorming = false;
+      p.brainstormData = null;
+      p.isRevealingTopCard = false;
+      p.revealedCard = null;
+      p.isScrying = false;
+      p.scryCard = null;
+      p.isSurveiling = false;
+      p.surveilCard = null;
+      p.isSearchingLibrary = false;
+      p.searchCriteria = null;
+      p.isShowAndTelling = false;
+
+      for (let i = 0; i < 7; i++) p.hand.push(p.library.pop());
     });
-    this.log(`Game ${this.state.gameNumber} started.`);
+    this.addLog(`Game ${this.state.gameNumber} started.`);
   }
 
+  // ── State serialisation ─────────────────────────────────────
   getState(forPlayerId) {
-    // Serialize with a replacer function to exclude non-serializable properties
     const stateCopy = JSON.parse(JSON.stringify(this.state, (key, value) => {
-      // Exclude non-serializable properties
-      if (key === 'disconnectTimeout' || key === 'socketId') {
-        return undefined;
-      }
+      if (key === 'disconnectTimeout' || key === 'socketId') return undefined;
       return value;
     }));
-    
-    // Hide info for opponent
+
     stateCopy.players.forEach(p => {
       if (p.id !== forPlayerId) {
-        // Hide hand details
         p.hand = p.hand.map(() => ({ instanceId: 'hidden' }));
       }
-    
-          // Hide library details unless the player is currently searching
-          if (p.id !== forPlayerId || !p.isSearchingLibrary) {
-            p.library = p.library.map(() => ({ instanceId: 'hidden' }));
-          }
-        });
-        return stateCopy;
+      if (p.id !== forPlayerId || !p.isSearchingLibrary) {
+        p.library = p.library.map(() => ({ instanceId: 'hidden' }));
+      }
+    });
+    return stateCopy;
   }
 
+  // ── Helpers ─────────────────────────────────────────────────
   getPlayerIndex(playerId) {
     return this.state.players.findIndex(p => p.id === playerId);
-  }
-
-  isGameOver() {
-    return this.state.gameOver || this.state.players.some(p => p.life <= 0);
-  }
-
-  drawCards(playerIndex, count) {
-    const player = this.state.players[playerIndex];
-    for (let i = 0; i < count; i++) {
-      if (player.library.length === 0) {
-        this.endGame(this.getOpponentIndex(playerIndex), 'Opponent drew from empty library');
-        return;
-      }
-      player.hand.push(player.library.pop());
-    }
   }
 
   getOpponentIndex(playerIndex) {
     return playerIndex === 0 ? 1 : 0;
   }
 
+  isGameOver() {
+    return this.state.gameOver;
+  }
+
+  drawCards(playerIndex, count) {
+    const player = this.state.players[playerIndex];
+    for (let i = 0; i < count; i++) {
+      if (player.library.length === 0) {
+        this.endGame(this.getOpponentIndex(playerIndex), 'Drew from empty library');
+        return;
+      }
+      player.hand.push(player.library.pop());
+    }
+  }
+
   endGame(winnerIndex, reason) {
     if (this.state.gameOver || this.state.phase === 'sideboarding') return;
-    
+
     if (this.state.isBO3) {
       if (winnerIndex !== null && winnerIndex !== undefined && winnerIndex !== -1) {
-         this.state.matchWins[winnerIndex]++;
+        this.state.matchWins[winnerIndex]++;
       }
       this.state.gameNumber++;
-      
-      const winnerName = winnerIndex === -1 ? 'Player 1' : (this.state.mode === '1v0' ? this.state.players[0].name : (winnerIndex !== null && winnerIndex !== undefined ? this.state.players[winnerIndex].name : 'Draw'));
 
+      const winnerName = this._winnerName(winnerIndex);
       if (this.state.matchWins[winnerIndex] === 2) {
-         this.state.gameOver = true;
-         this.state.matchOver = true;
-         this.state.winner = winnerName;
-         this.state.winReason = `Match won 2-${this.state.matchWins[this.getOpponentIndex(winnerIndex)]}`;
-         this.log(`Match over. ${this.state.winner} wins the match.`);
+        this.state.gameOver = true;
+        this.state.matchOver = true;
+        this.state.winner = winnerName;
+        this.state.winReason = `Match won 2-${this.state.matchWins[this.getOpponentIndex(winnerIndex)]}`;
+        this.addLog(`Match over. ${this.state.winner} wins the match.`);
       } else {
-         this.state.phase = 'sideboarding';
-         this.state.players.forEach(p => p.sideboardReady = false);
-         this.log(`Game over. ${winnerName} wins. Entering sideboarding for game ${this.state.gameNumber}.`);
+        this.state.phase = 'sideboarding';
+        this.state.players.forEach(p => p.sideboardReady = false);
+        this.addLog(`Game over. ${winnerName} wins. Sideboarding for game ${this.state.gameNumber}.`);
       }
     } else {
       this.state.gameOver = true;
-      this.state.winner = winnerIndex === -1 ? 'Player 1' : (this.state.mode === '1v0' ? this.state.players[0].name : (winnerIndex !== null && winnerIndex !== undefined ? this.state.players[winnerIndex].name : 'Draw'));
+      this.state.winner = this._winnerName(winnerIndex);
       this.state.winReason = reason;
-      this.log(`Game over. ${this.state.winner} wins. Reason: ${reason}`);
+      this.addLog(`Game over. ${this.state.winner} wins. Reason: ${reason}`);
     }
+  }
+
+  _winnerName(winnerIndex) {
+    if (winnerIndex === -1) return 'Player 1';
+    if (winnerIndex === null || winnerIndex === undefined) return 'Draw';
+    if (this.state.mode === '1v0') return this.state.players[0].name;
+    return this.state.players[winnerIndex]?.name ?? 'Unknown';
   }
 
   clearManaPool() {
@@ -203,22 +229,28 @@ export class GameEngine {
     });
   }
 
+  // ── Phase engine ────────────────────────────────────────────
   advancePhase() {
-    const phases = ['untap', 'upkeep', 'draw', 'main1', 'combat_begin', 'combat_attackers', 'combat_blockers', 'combat_damage', 'combat_end', 'main2', 'end_step', 'cleanup'];
-    let currentIdx = phases.indexOf(this.state.phase);
-    let nextIdx = currentIdx + 1;
+    const phases = [
+      'untap', 'upkeep', 'draw',
+      'main1',
+      'combat_begin', 'combat_attackers', 'combat_blockers', 'combat_damage', 'combat_end',
+      'main2',
+      'end_step', 'cleanup'
+    ];
+    const currentIdx = phases.indexOf(this.state.phase);
+    const nextIdx = currentIdx + 1;
 
     this.clearManaPool();
 
     if (nextIdx >= phases.length) {
-      // Next turn
       this.state.phase = 'untap';
       this.state.turn++;
       if (this.state.mode === '1v1') {
         this.state.activePlayer = this.getOpponentIndex(this.state.activePlayer);
         this.state.priorityPlayer = this.state.activePlayer;
       }
-      this.log(`--- Turn ${this.state.turn} - ${this.state.players[this.state.activePlayer].name}'s Turn ---`);
+      this.addLog(`--- Turn ${this.state.turn} – ${this.state.players[this.state.activePlayer].name}'s Turn ---`);
       this.handleAutoPhase();
       return;
     }
@@ -234,91 +266,163 @@ export class GameEngine {
 
     switch (this.state.phase) {
       case 'untap':
-        this.log(`${player.name} Untap Step`);
-        player.battlefield.forEach(card => {
-          card.tapped = false;
-          // Clear summoning sickness
-          card.summoningSick = false;
+        this.addLog(`${player.name} – Untap`);
+        player.battlefield.forEach(c => {
+          c.tapped = false;
+          c.summoningSick = false;
         });
         player.landsPlayedThisTurn = 0;
         this.advancePhase();
         break;
+
       case 'upkeep':
-        this.log(`${player.name} Upkeep Step`);
-        this.advancePhase();
+        this.addLog(`${player.name} – Upkeep`);
+        this._processUpkeepTriggers(pIdx);
+        // Only auto-advance if no blocking UI state was set
+        if (!player.isRevealingTopCard) this.advancePhase();
         break;
+
       case 'draw':
-        this.log(`${player.name} Draw Step`);
-        if (!(this.state.turn === 1 && pIdx === 0)) { // Skip first draw on turn 1
-          this.drawCards(pIdx, 1);
-        }
+        this.addLog(`${player.name} – Draw`);
+        if (!(this.state.turn === 1 && pIdx === 0)) this.drawCards(pIdx, 1);
         this.advancePhase();
         break;
+
       case 'main1':
-        this.log(`${player.name} Pre-combat Main Phase`);
-        // Wait for player to manually advance
-        break;
+      case 'main2':
+        this.addLog(`${player.name} – ${this.state.phase === 'main1' ? 'Pre-combat' : 'Post-combat'} Main`);
+        break; // wait for player
+
       case 'combat_begin':
-        this.log(`${player.name} Beginning of Combat`);
-        this.state.combatState = {
-          attackers: [], // [{ instanceId, attackerIndex }]
-          blockers: [] // [{ attackerInstanceId, blockerInstanceIds: [] }]
-        };
+        this.addLog(`${player.name} – Beginning of Combat`);
+        this.state.combatState = { attackers: [], blockers: [] };
         this.advancePhase();
         break;
+
       case 'combat_attackers':
-        this.log(`${player.name} Declare Attackers Step`);
-        // Wait for player to declare attackers
+        this.addLog(`${player.name} – Declare Attackers`);
         break;
+
       case 'combat_blockers':
-        this.log(`${player.name} Declare Blockers Step`);
-        if (this.state.mode === '1v0') {
-          // No blockers in 1v0 goldfish
-          this.advancePhase();
-        }
-        // Wait for opponent to declare blockers in 1v1
+        this.addLog(`${player.name} – Declare Blockers`);
+        if (this.state.mode === '1v0') this.advancePhase();
         break;
+
       case 'combat_damage':
-        this.log(`${player.name} Combat Damage Step`);
+        this.addLog(`${player.name} – Combat Damage`);
         this.resolveCombatDamage();
         this.advancePhase();
         break;
+
       case 'combat_end':
-        this.log(`${player.name} End of Combat`);
+        this.addLog(`${player.name} – End of Combat`);
         this.state.combatState = null;
         this.advancePhase();
         break;
-      case 'main2':
-        this.log(`${player.name} Post-combat Main Phase`);
-        // Wait for player
-        break;
+
       case 'end_step':
-        this.log(`${player.name} End Step`);
+        this.addLog(`${player.name} – End Step`);
+        this._processEndStepTriggers(pIdx);
         this.advancePhase();
         break;
+
       case 'cleanup':
-        this.log(`${player.name} Cleanup Step`);
-        // Discard down to 7 (simplified)
-        // Clear damage
-        this.state.players.forEach(p => {
-          p.battlefield.forEach(c => c.damage = 0);
-        });
+        this.addLog(`${player.name} – Cleanup`);
+        this.state.players.forEach(p => p.battlefield.forEach(c => c.damage = 0));
         this.advancePhase();
         break;
     }
   }
 
+  // ── Phase 4: Upkeep Trigger Processing ──────────────────────
+  _processUpkeepTriggers(pIdx) {
+    const player = this.state.players[pIdx];
+
+    player.battlefield.forEach(card => {
+      const triggers = card.engineMetadata?.upkeepTriggers || [];
+      triggers.forEach(trigger => {
+        switch (trigger.type) {
+          case 'DELVER_FLIP': {
+            // Reveal top card of library to both players
+            if (player.library.length > 0) {
+              const topCard = player.library[player.library.length - 1];
+              player.isRevealingTopCard = true;
+              player.revealedCard = { ...topCard, sourceInstanceId: card.instanceId };
+              this.addLog(`${player.name}'s Delver of Secrets trigger: revealing top card – ${topCard.name}.`);
+
+              // If it's an Instant or Sorcery, transform Delver
+              if (topCard.type_line?.includes('Instant') || topCard.type_line?.includes('Sorcery')) {
+                this._transformDelver(card, pIdx);
+                this.addLog(`${topCard.name} is an Instant/Sorcery! Delver transforms into Insectile Aberration.`);
+              }
+            }
+            break;
+          }
+          case 'ADD_CHARGE_COUNTER': {
+            card.counters = card.counters || {};
+            card.counters.charge = (card.counters.charge || 0) + 1;
+            this.addLog(`${player.name} adds a charge counter to ${card.name} (now ${card.counters.charge}).`);
+            break;
+          }
+          case 'DRAW': {
+            this.drawCards(pIdx, trigger.amount || 1);
+            this.addLog(`${player.name} draws ${trigger.amount} card(s) from ${card.name}'s upkeep trigger.`);
+            break;
+          }
+          case 'LOSE_LIFE': {
+            player.life -= trigger.amount;
+            this.addLog(`${player.name} loses ${trigger.amount} life from ${card.name}'s upkeep trigger.`);
+            this.checkWinConditions();
+            break;
+          }
+        }
+      });
+    });
+  }
+
+  _transformDelver(card, pIdx) {
+    // Flip to Insectile Aberration (3/2 Flying)
+    card.transformed = true;
+    card.name = 'Insectile Aberration';
+    card.power = '3';
+    card.toughness = '2';
+    card.keywords = [...(card.keywords || []), 'Flying'];
+    card.type_line = 'Creature – Human Insect';
+    // Keep original image reference so UI can show the back face
+    card._originalName = 'Delver of Secrets';
+  }
+
+  // ── Phase 4: End-Step Trigger Processing (delayed sacrifices) ─
+  _processEndStepTriggers(pIdx) {
+    const remaining = [];
+    for (const trigger of this.state.delayedTriggers) {
+      if (trigger.onPhase === 'end_step') {
+        if (trigger.type === 'SACRIFICE' && trigger.ownerIndex === pIdx) {
+          const owner = this.state.players[pIdx];
+          const bfIdx = owner.battlefield.findIndex(c => c.instanceId === trigger.instanceId);
+          if (bfIdx !== -1) {
+            const [sacrificed] = owner.battlefield.splice(bfIdx, 1);
+            owner.graveyard.push(sacrificed);
+            this.addLog(`${sacrificed.name} is sacrificed at end of turn (Sneak Attack trigger).`);
+          }
+        }
+      } else {
+        remaining.push(trigger);
+      }
+    }
+    this.state.delayedTriggers = remaining;
+  }
+
+  // ── Combat ───────────────────────────────────────────────────
   resolveCombatDamage() {
     if (!this.state.combatState) return;
-
     const attackerPlayer = this.state.players[this.state.activePlayer];
-    const defenderPlayer = this.state.mode === '1v1' ? this.state.players[this.getOpponentIndex(this.state.activePlayer)] : null;
+    const defenderPlayer = this.state.mode === '1v1'
+      ? this.state.players[this.getOpponentIndex(this.state.activePlayer)]
+      : null;
 
-    // First Strike Damage
     this.applyDamageStep(true, attackerPlayer, defenderPlayer);
     this.checkDeaths();
-
-    // Normal Damage
     this.applyDamageStep(false, attackerPlayer, defenderPlayer);
     this.checkDeaths();
   }
@@ -331,88 +435,70 @@ export class GameEngine {
       const attackerCard = attackerPlayer.battlefield.find(c => c.instanceId === att.instanceId);
       if (!attackerCard) return;
 
-      const hasFirstStrike = (attackerCard.keywords || []).includes('First Strike');
+      const hasFirstStrike  = (attackerCard.keywords || []).includes('First Strike');
       const hasDoubleStrike = (attackerCard.keywords || []).includes('Double Strike');
+      let dealsDamage = false;
+      if (isFirstStrikeStep && (hasFirstStrike || hasDoubleStrike)) dealsDamage = true;
+      if (!isFirstStrikeStep && (!hasFirstStrike || hasDoubleStrike))    dealsDamage = true;
+      if (!dealsDamage) return;
 
-      let dealsDamageThisStep = false;
-      if (isFirstStrikeStep) {
-        if (hasFirstStrike || hasDoubleStrike) dealsDamageThisStep = true;
-      } else {
-        if (!hasFirstStrike || hasDoubleStrike) dealsDamageThisStep = true;
-      }
-
-      if (!dealsDamageThisStep) return;
-
-      let power = parseInt(attackerCard.power) || 0;
+      const power = parseInt(attackerCard.power) || 0;
       if (power <= 0) return;
 
       const blockInfo = combat.blockers.find(b => b.attackerInstanceId === att.instanceId);
-      
+
       if (!blockInfo || blockInfo.blockerInstanceIds.length === 0) {
         // Unblocked
         if (this.state.mode === '1v0') {
           this.state.virtualOpponent.life -= power;
-          this.log(`${attackerCard.name} deals ${power} damage to Goldfish Opponent.`);
+          this.addLog(`${attackerCard.name} deals ${power} to Goldfish.`);
         } else {
           defenderPlayer.life -= power;
-          this.log(`${attackerCard.name} deals ${power} damage to ${defenderPlayer.name}.`);
+          this.addLog(`${attackerCard.name} deals ${power} to ${defenderPlayer.name}.`);
         }
-        if ((attackerCard.keywords || []).includes('Lifelink')) {
-          attackerPlayer.life += power;
-          this.log(`${attackerCard.name}'s Lifelink gains ${attackerPlayer.name} ${power} life.`);
-        }
+        if ((attackerCard.keywords || []).includes('Lifelink')) attackerPlayer.life += power;
       } else {
         // Blocked
-        const blockers = blockInfo.blockerInstanceIds.map(id => defenderPlayer.battlefield.find(c => c.instanceId === id)).filter(Boolean);
-        
-        let remainingPower = power;
+        const blockers = blockInfo.blockerInstanceIds
+          .map(id => defenderPlayer.battlefield.find(c => c.instanceId === id))
+          .filter(Boolean);
+
+        let remaining = power;
         const hasDeathtouch = (attackerCard.keywords || []).includes('Deathtouch');
-        const hasTrample = (attackerCard.keywords || []).includes('Trample');
-        
+        const hasTrample    = (attackerCard.keywords || []).includes('Trample');
+
         blockers.forEach(blocker => {
-          if (remainingPower <= 0) return;
-          const blockerToughness = parseInt(blocker.toughness) || 0;
-          let damageToDeal = hasDeathtouch ? 1 : Math.min(remainingPower, blockerToughness - (blocker.damage || 0));
-          if (!hasTrample && blockers.length === 1) { // Deal full damage if only 1 blocker even without trample
-             damageToDeal = remainingPower; 
-          }
-          blocker.damage = (blocker.damage || 0) + damageToDeal;
-          remainingPower -= damageToDeal;
-          this.log(`${attackerCard.name} deals ${damageToDeal} damage to ${blocker.name}.`);
+          if (remaining <= 0) return;
+          const blockerTgh = parseInt(blocker.toughness) || 0;
+          let dmg = hasDeathtouch ? 1 : Math.min(remaining, blockerTgh - (blocker.damage || 0));
+          if (!hasTrample && blockers.length === 1) dmg = remaining;
+          blocker.damage = (blocker.damage || 0) + dmg;
+          remaining -= dmg;
+          this.addLog(`${attackerCard.name} deals ${dmg} to ${blocker.name}.`);
+          if ((attackerCard.keywords || []).includes('Lifelink')) attackerPlayer.life += dmg;
 
-          if ((attackerCard.keywords || []).includes('Lifelink')) {
-            attackerPlayer.life += damageToDeal;
-          }
-
-          // Blocker deals damage back
-          let blockerPower = parseInt(blocker.power) || 0;
-          const blockerFirstStrike = (blocker.keywords || []).includes('First Strike');
-          const blockerDoubleStrike = (blocker.keywords || []).includes('Double Strike');
-          
-          let blockerDealsDamage = false;
-          if (isFirstStrikeStep && (blockerFirstStrike || blockerDoubleStrike)) blockerDealsDamage = true;
-          if (!isFirstStrikeStep && (!blockerFirstStrike || blockerDoubleStrike)) blockerDealsDamage = true;
-
-          if (blockerDealsDamage && blockerPower > 0) {
-            attackerCard.damage = (attackerCard.damage || 0) + blockerPower;
-            this.log(`${blocker.name} deals ${blockerPower} damage to ${attackerCard.name}.`);
-            if ((blocker.keywords || []).includes('Lifelink')) {
-              defenderPlayer.life += blockerPower;
-            }
+          // Blocker deals back
+          const bPower = parseInt(blocker.power) || 0;
+          const bFS = (blocker.keywords || []).includes('First Strike');
+          const bDS = (blocker.keywords || []).includes('Double Strike');
+          let blockerDeals = false;
+          if (isFirstStrikeStep && (bFS || bDS)) blockerDeals = true;
+          if (!isFirstStrikeStep && (!bFS || bDS)) blockerDeals = true;
+          if (blockerDeals && bPower > 0) {
+            attackerCard.damage = (attackerCard.damage || 0) + bPower;
+            this.addLog(`${blocker.name} deals ${bPower} to ${attackerCard.name}.`);
+            if ((blocker.keywords || []).includes('Lifelink') && defenderPlayer) defenderPlayer.life += bPower;
           }
         });
 
-        if (hasTrample && remainingPower > 0) {
+        if (hasTrample && remaining > 0) {
           if (this.state.mode === '1v0') {
-            this.state.virtualOpponent.life -= remainingPower;
-            this.log(`${attackerCard.name} tramples for ${remainingPower} damage to Goldfish Opponent.`);
+            this.state.virtualOpponent.life -= remaining;
           } else {
-            defenderPlayer.life -= remainingPower;
-            this.log(`${attackerCard.name} tramples for ${remainingPower} damage to ${defenderPlayer.name}.`);
+            defenderPlayer.life -= remaining;
+            this.addLog(`${attackerCard.name} tramples for ${remaining} to ${defenderPlayer.name}.`);
           }
-          if ((attackerCard.keywords || []).includes('Lifelink')) {
-            attackerPlayer.life += remainingPower;
-          }
+          if ((attackerCard.keywords || []).includes('Lifelink')) attackerPlayer.life += remaining;
         }
       }
     });
@@ -421,107 +507,309 @@ export class GameEngine {
   checkDeaths() {
     this.state.players.forEach(p => {
       p.battlefield = p.battlefield.filter(card => {
-        if (!card.type_line.includes('Creature')) return true; // not a creature
-        const toughness = parseInt(card.toughness) || 0;
-        const damage = card.damage || 0;
-        const hasDeathtouchDamage = card.deathtouchDamage || false; // simplified
-
-        if (damage >= toughness || hasDeathtouchDamage) {
-          this.log(`${card.name} dies.`);
-          p.graveyard.push(card);
-          // clear damage, states
-          card.damage = 0;
-          card.tapped = false;
+        if (!card.type_line?.includes('Creature')) return true;
+        const tgh = parseInt(card.toughness) || 0;
+        if ((card.damage || 0) >= tgh) {
+          this.addLog(`${card.name} dies.`);
+          p.graveyard.push({ ...card, damage: 0, tapped: false });
           return false;
         }
         return true;
       });
     });
-
     this.checkWinConditions();
   }
 
-  
-  checkWinConditions() {
-    if (this.state.mode === '1v0') {
-      if (this.state.virtualOpponent.life <= 0) {
-        this.endGame(0, 'Goldfish Opponent life reached 0');
-      } else if (this.state.players[0].life <= 0) {
-        this.endGame(-1, 'Player life reached 0');
-      }
-    } else {
-      let alivePlayers = this.state.players.filter(p => p.life > 0);
-      if (alivePlayers.length === 1) {
-        this.endGame(alivePlayers[0].index, 'Opponent life reached 0');
-      } else if (alivePlayers.length === 0) {
-        this.endGame(null, 'Both players life reached 0');
-      }
-    }
-  }
+  checkWinConditions() {
+    if (this.state.mode === '1v0') {
+      if (this.state.virtualOpponent.life <= 0)
+        this.endGame(0, 'Goldfish reached 0 life');
+      else if (this.state.players[0].life <= 0)
+        this.endGame(-1, 'Player life reached 0');
+    } else {
+      const alive = this.state.players.filter(p => p.life > 0);
+      if (alive.length === 1)  this.endGame(alive[0].index, 'Opponent life reached 0');
+      else if (alive.length === 0) this.endGame(null, 'Both players at 0 life');
+    }
+  }
 
+  // ── Phase 1: Resolve Effects (targeted) ─────────────────────
+  resolveEffects(playerIndex, effects, sourceName, targets = []) {
+    const player = this.state.players[playerIndex];
 
+    effects.forEach(effect => {
+      switch (effect.type) {
 
+        case 'DRAW':
+          this.drawCards(playerIndex, effect.amount);
+          this.addLog(`${player.name} draws ${effect.amount} from ${sourceName}.`);
+          break;
 
-  resolveEffects(playerIndex, effects, sourceName) {
-    const player = this.state.players[playerIndex];
-    
-    effects.forEach(effect => {
-      switch (effect.type) {
-        case 'DRAW':
-          this.drawCards(playerIndex, effect.amount);
-          this.log(`${player.name} draws ${effect.amount} card(s) from ${sourceName}.`);
-          break;
-        case 'GAIN_LIFE':
-          player.life += effect.amount;
-          this.log(`${player.name} gains ${effect.amount} life from ${sourceName}.`);
-          break;
+        case 'GAIN_LIFE':
+          player.life += effect.amount;
+          this.addLog(`${player.name} gains ${effect.amount} life from ${sourceName}.`);
+          break;
+
+        case 'LOSE_LIFE':
+          player.life -= effect.amount;
+          this.addLog(`${player.name} loses ${effect.amount} life from ${sourceName}.`);
+          this.checkWinConditions();
+          break;
 
         case 'SURVEIL':
           if (player.library.length > 0) {
             player.isSurveiling = true;
-            player.surveilCard = player.library[0];
-            this.log(`${player.name} Surveils ${effect.amount} from ${sourceName}.`);
+            player.surveilCard = player.library[player.library.length - 1];
+            this.addLog(`${player.name} surveils ${effect.amount} from ${sourceName}.`);
           }
           break;
-        case 'MILL':
-          const milledCards = player.library.splice(0, effect.amount);
-          player.graveyard.push(...milledCards);
-          this.log(`${player.name} mills ${effect.amount} card(s) from ${sourceName}.`);
+
+        case 'MILL': {
+          const milled = player.library.splice(player.library.length - effect.amount, effect.amount);
+          player.graveyard.push(...milled);
+          this.addLog(`${player.name} mills ${effect.amount} from ${sourceName}.`);
           break;
+        }
+
         case 'SCRY':
           if (player.library.length > 0) {
             player.isScrying = true;
-            player.scryCard = player.library[0]; // Simplification for Scry 1 UI
-            this.log(`${player.name} Scries ${effect.amount} from ${sourceName}.`);
+            player.scryCard = player.library[player.library.length - 1];
+            this.addLog(`${player.name} scries ${effect.amount} from ${sourceName}.`);
           }
           break;
-        case 'DEAL_DAMAGE':
-          if (this.state.mode === '1v0') {
-            this.state.virtualOpponent.life -= effect.amount;
-            this.log(`${sourceName} deals ${effect.amount} damage to Goldfish Opponent.`);
-          } else {
-            const opp = this.state.players[this.getOpponentIndex(playerIndex)];
-            opp.life -= effect.amount;
-            this.log(`${sourceName} deals ${effect.amount} damage to ${opp.name}.`);
-          }
-          this.checkWinConditions();
-          break;
-        case 'DESTROY':
-          this.log(`${sourceName} effect triggered: Destroy target ${effect.targetType} (Manual UI targeting not yet implemented).`);
-          break;
-      }
-    });
-  }
 
+        // Phase 2 – Ponder
+        case 'LOOK_AND_REARRANGE': {
+          const amt = effect.amount || 3;
+          const cards = [];
+          for (let i = 0; i < amt && player.library.length > 0; i++) {
+            cards.push(player.library.pop());
+          }
+          player.ponderCards = cards;
+          player.isRearrangingLibrary = true;
+          player.ponderCanShuffle = effect.canShuffle || false;
+          player.ponderThenDraw = effect.thenDraw || 0;
+          this.addLog(`${player.name} looks at the top ${amt} cards of their library (${sourceName}).`);
+          break;
+        }
 
+        // Phase 2 – Brainstorm
+        case 'DRAW_AND_TOPDECK': {
+          this.drawCards(playerIndex, effect.draw || 3);
+          player.isBrainstorming = true;
+          player.brainstormData = { putBack: effect.putBack || 2 };
+          this.addLog(`${player.name} draws ${effect.draw} (${sourceName}), must put back ${effect.putBack}.`);
+          break;
+        }
 
+        case 'DEAL_DAMAGE': {
+          const amount = effect.amount;
+          if (targets.length > 0) {
+            targets.forEach(targetRef => {
+              this._applyDamageToTarget(targetRef, amount, sourceName, playerIndex);
+            });
+          } else if (this.state.mode === '1v0') {
+            this.state.virtualOpponent.life -= amount;
+            this.addLog(`${sourceName} deals ${amount} to Goldfish.`);
+          } else {
+            const opp = this.state.players[this.getOpponentIndex(playerIndex)];
+            opp.life -= amount;
+            this.addLog(`${sourceName} deals ${amount} to ${opp.name}.`);
+          }
+          this.checkWinConditions();
+          break;
+        }
 
-  handleAction(playerId, action) {
+        case 'DESTROY': {
+          if (targets.length > 0) {
+            targets.forEach(targetRef => {
+              this._destroyTarget(targetRef, sourceName);
+            });
+          }
+          break;
+        }
+
+        case 'EXILE': {
+          if (targets.length > 0) {
+            targets.forEach(targetRef => {
+              this._exileTarget(targetRef, sourceName, playerIndex);
+            });
+          }
+          break;
+        }
+
+        case 'COUNTER_SPELL': {
+          if (targets.length > 0) {
+            const stackTarget = this.state.stack.find(s => s.instanceId === targets[0]);
+            if (stackTarget) {
+              this.state.stack = this.state.stack.filter(s => s.instanceId !== targets[0]);
+              // Put it in graveyard
+              const ownerPlayer = this.state.players[stackTarget.ownerIndex];
+              if (ownerPlayer) ownerPlayer.graveyard.push(stackTarget.card);
+              this.addLog(`${sourceName} counters ${stackTarget.card?.name || 'a spell'}.`);
+            }
+          }
+          break;
+        }
+
+        case 'SHOW_AND_TELL': {
+          // Set both players into "choose a permanent to put onto battlefield" mode
+          this.state.players.forEach(p => {
+            p.isShowAndTelling = true;
+          });
+          this.addLog(`Show and Tell: each player may put a permanent from their hand onto the battlefield.`);
+          break;
+        }
+
+        case 'PUT_CREATURE_FROM_HAND': {
+          // Handled via activate-ability action
+          break;
+        }
+
+        default:
+          this.addLog(`[Unimplemented effect: ${effect.type}]`);
+      }
+    });
+  }
+
+  // ── Target application helpers ───────────────────────────────
+  _destroyTarget(targetRef, sourceName) {
+    for (const p of this.state.players) {
+      const idx = p.battlefield.findIndex(c => c.instanceId === targetRef);
+      if (idx !== -1) {
+        const card = p.battlefield.splice(idx, 1)[0];
+        p.graveyard.push(card);
+        this.addLog(`${sourceName} destroys ${card.name}.`);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  _applyDamageToTarget(targetRef, amount, sourceName, playerIndex) {
+    // targetRef can be a player id or creature instanceId
+    if (this.state.mode === '1v0' && targetRef === 'goldfish') {
+      this.state.virtualOpponent.life -= amount;
+      this.addLog(`${sourceName} deals ${amount} to Goldfish.`);
+      return;
+    }
+    const targetPlayer = this.state.players.find(p => p.id === targetRef);
+    if (targetPlayer) {
+      targetPlayer.life -= amount;
+      this.addLog(`${sourceName} deals ${amount} to ${targetPlayer.name}.`);
+      return;
+    }
+    // Search battlefields for creature
+    for (const p of this.state.players) {
+      const card = p.battlefield.find(c => c.instanceId === targetRef);
+      if (card) {
+        card.damage = (card.damage || 0) + amount;
+        this.addLog(`${sourceName} deals ${amount} to ${card.name}.`);
+        this.checkDeaths();
+        return;
+      }
+    }
+  }
+
+  _destroyTarget(targetRef, sourceName) {
+    for (const p of this.state.players) {
+      const idx = p.battlefield.findIndex(c => c.instanceId === targetRef);
+      if (idx !== -1) {
+        const [card] = p.battlefield.splice(idx, 1);
+        p.graveyard.push(card);
+        this.addLog(`${sourceName} destroys ${card.name}.`);
+        return;
+      }
+    }
+  }
+
+  _exileTarget(targetRef, sourceName, _playerIndex) {
+    for (const p of this.state.players) {
+      // Check battlefield
+      const bfIdx = p.battlefield.findIndex(c => c.instanceId === targetRef);
+      if (bfIdx !== -1) {
+        const [card] = p.battlefield.splice(bfIdx, 1);
+        p.exile.push(card);
+        this.addLog(`${sourceName} exiles ${card.name}.`);
+        return;
+      }
+      // Check hand
+      const hIdx = p.hand.findIndex(c => c.instanceId === targetRef);
+      if (hIdx !== -1) {
+        const [card] = p.hand.splice(hIdx, 1);
+        p.exile.push(card);
+        this.addLog(`${sourceName} exiles ${card.name} from hand.`);
+        return;
+      }
+    }
+  }
+
+  // ── Phase 3: Alternate Cost Validation ──────────────────────
+  _validateAndDeductAlternateCost(player, playerIndex, altCostDetails, card) {
+    const alternateCosts = card.engineMetadata?.alternateCosts || [];
+    if (alternateCosts.length === 0) throw new Error('This card has no alternate costs');
+
+    const altCost = alternateCosts.find(a => a.id === altCostDetails.altCostId);
+    if (!altCost) throw new Error(`Unknown alternate cost id: ${altCostDetails.altCostId}`);
+
+    for (const cond of altCost.conditions) {
+      switch (cond.type) {
+        case 'PAY_LIFE': {
+          if (player.life <= cond.amount) throw new Error(`Not enough life to pay alternate cost (need >${cond.amount})`);
+          player.life -= cond.amount;
+          this.addLog(`${player.name} pays ${cond.amount} life for alternate cost.`);
+          break;
+        }
+        case 'EXILE_FROM_HAND': {
+          // altCostDetails.exileCardInstanceId must be provided
+          const { exileCardInstanceId } = altCostDetails;
+          if (!exileCardInstanceId) throw new Error('Must specify a card to exile from hand');
+          const hIdx = player.hand.findIndex(c => c.instanceId === exileCardInstanceId);
+          if (hIdx === -1) throw new Error('Card to exile not found in hand');
+          const exCard = player.hand[hIdx];
+          if (cond.colorRequired) {
+            const colors = exCard.colors || exCard.color_identity || [];
+            const colorArr = Array.isArray(colors) ? colors : [];
+            if (!colorArr.includes(cond.colorRequired)) {
+              throw new Error(`Exiled card must be ${cond.colorRequired} colored`);
+            }
+          }
+          player.hand.splice(hIdx, 1);
+          player.exile.push(exCard);
+          this.addLog(`${player.name} exiles ${exCard.name} from hand for alternate cost.`);
+          break;
+        }
+        case 'RETURN_LAND_TO_HAND': {
+          // altCostDetails.returnLandInstanceId must be provided
+          const { returnLandInstanceId } = altCostDetails;
+          if (!returnLandInstanceId) throw new Error('Must specify an Island to return');
+          const bfIdx = player.battlefield.findIndex(c => c.instanceId === returnLandInstanceId);
+          if (bfIdx === -1) throw new Error('Land not found on your battlefield');
+          const land = player.battlefield[bfIdx];
+          if (cond.subtypeRequired && !land.type_line?.includes(cond.subtypeRequired)) {
+            throw new Error(`Returned land must be a ${cond.subtypeRequired}`);
+          }
+          player.battlefield.splice(bfIdx, 1);
+          player.hand.push(land);
+          this.addLog(`${player.name} returns ${land.name} to hand for alternate cost.`);
+          break;
+        }
+        case 'UNKNOWN':
+          this.addLog(`[Alternate cost condition not fully implemented: ${cond.raw}]`);
+          break;
+      }
+    }
+  }
+
+  // ── Main Action Dispatcher ───────────────────────────────────
+  handleAction(playerId, action) {
     const playerIndex = this.getPlayerIndex(playerId);
     if (playerIndex === -1) return { success: false, error: 'Player not found' };
     const player = this.state.players[playerIndex];
 
     try {
+      // ---- Always-available actions ----
       if (action.type === 'concede') {
         this.endGame(this.getOpponentIndex(playerIndex), 'Opponent conceded');
         return { success: true };
@@ -529,12 +817,11 @@ export class GameEngine {
 
       if (this.state.phase === 'sideboarding') {
         if (action.type === 'submit-sideboard') {
-          player.deck = action.newMainDeck || player.deck;
+          player.deck     = action.newMainDeck || player.deck;
           player.sideboard = action.newSideboard || player.sideboard;
           player.sideboardReady = true;
-          
           if (this.state.mode === '1v0' || this.state.players.every(p => p.sideboardReady)) {
-            this.initGame(); // Starts the next game
+            this.initGame();
           }
           return { success: true };
         }
@@ -544,380 +831,546 @@ export class GameEngine {
       if (this.state.gameOver) return { success: false, error: 'Game is over' };
 
       switch (action.type) {
-        case 'mulligan-keep':
+
+        // ── Mulligan ──────────────────────────────────────────
+        case 'mulligan-keep': {
           if (this.state.phase !== 'mulligan') throw new Error('Not in mulligan phase');
           if (player.hasKeptHand) throw new Error('Already kept hand');
-          
+
           if (player.mulliganCount > 0) {
-             // Require bottoming cards
-             if (!action.bottomCards || action.bottomCards.length !== player.mulliganCount) {
-               throw new Error(`Must specify ${player.mulliganCount} cards to put on bottom of library`);
-             }
-             action.bottomCards.forEach(instanceId => {
-               const idx = player.hand.findIndex(c => c.instanceId === instanceId);
-               if (idx !== -1) {
-                 const card = player.hand.splice(idx, 1)[0];
-                 player.library.unshift(card); // put on bottom
-               }
-             });
+            if (!action.bottomCards || action.bottomCards.length !== player.mulliganCount) {
+              throw new Error(`Must specify ${player.mulliganCount} cards to bottom`);
+            }
+            action.bottomCards.forEach(iid => {
+              const idx = player.hand.findIndex(c => c.instanceId === iid);
+              if (idx !== -1) player.library.unshift(player.hand.splice(idx, 1)[0]);
+            });
           }
           player.hasKeptHand = true;
-          this.log(`${player.name} keeps their hand.`);
-          
-          // Check if all players kept
+          this.addLog(`${player.name} keeps their hand.`);
           if (this.state.players.every(p => p.hasKeptHand)) {
             this.state.phase = 'untap';
             this.handleAutoPhase();
           }
           return { success: true };
+        }
 
-        case 'mulligan-mulligan':
+        case 'mulligan-mulligan': {
           if (this.state.phase !== 'mulligan') throw new Error('Not in mulligan phase');
           if (player.hasKeptHand) throw new Error('Already kept hand');
-          
-          // Shuffle hand into library
           player.library.push(...player.hand);
           player.hand = [];
-          
-          // Shuffle library
-          for (let i = player.library.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [player.library[i], player.library[j]] = [player.library[j], player.library[i]];
-          }
-          
+          this._shuffle(player.library);
           player.mulliganCount++;
           this.drawCards(playerIndex, 7);
-          this.log(`${player.name} takes a mulligan (count: ${player.mulliganCount}).`);
+          this.addLog(`${player.name} mulligans (count: ${player.mulliganCount}).`);
           return { success: true };
+        }
 
-        case 'pass':
-          // Simplified passing
-          if (this.state.priorityPlayer !== playerIndex) throw new Error('You do not have priority');
-          this.advancePhase();
-          return { success: true };
-
-        case 'play-card':
+        // ── Phase 1: Play Card → push to Stack ──────────────
+        case 'play-card': {
           if (this.state.phase === 'mulligan') throw new Error('Must complete mulligan first');
           if (this.state.priorityPlayer !== playerIndex) throw new Error('You do not have priority');
-          
-          console.log(`  play-card: looking for instanceId=${action.instanceId}, hand has: [${player.hand.map(c => c.instanceId).join(', ')}]`);
+
           const cardIdx = player.hand.findIndex(c => c.instanceId === action.instanceId);
           if (cardIdx === -1) throw new Error('Card not in hand');
           const card = player.hand[cardIdx];
 
-          
-          const isLand = card.type_line.includes('Land');
+          const isLand = card.type_line?.includes('Land');
+
           if (isLand) {
-            if (!['main1', 'main2'].includes(this.state.phase)) throw new Error('Lands can only be played in main phases');
-            if (this.state.activePlayer !== playerIndex) throw new Error('Lands can only be played on your turn');
-            if (player.landsPlayedThisTurn >= player.maxLandsPerTurn) throw new Error('Max lands played this turn');
-            
-            
+            if (!['main1', 'main2'].includes(this.state.phase))
+              throw new Error('Lands can only be played in main phases');
+            if (this.state.activePlayer !== playerIndex)
+              throw new Error('Lands can only be played on your turn');
+            if (player.landsPlayedThisTurn >= player.maxLandsPerTurn)
+              throw new Error('Max lands played this turn');
+
             player.hand.splice(cardIdx, 1);
             player.landsPlayedThisTurn++;
-
-            // Apply ETB Tapped logic dynamically from the parser
             card.tapped = card.engineMetadata?.entersTapped || false;
+            card.damage = 0;
             player.battlefield.push(card);
 
-            // Apply Surveil logic dynamically from the parser
-            if (card.engineMetadata?.surveilWhenETB > 0) {
-               if (player.library.length > 0) {
-                 player.isSurveiling = true;
-                 player.surveilCard = player.library[0]; 
-                 this.log(`${player.name} plays ${card.name}${card.tapped ? ' tapped' : ''} and Surveils ${card.engineMetadata.surveilWhenETB}.`);
-               } else {
-                 this.log(`${player.name} plays ${card.name}${card.tapped ? ' tapped' : ''}.`);
-               }
-            } else {
-               this.log(`${player.name} plays ${card.name}${card.tapped ? ' tapped' : ''}.`);
+            // ETB Surveil
+            if (card.engineMetadata?.etbEffects?.some(e => e.type === 'SURVEIL')) {
+              if (player.library.length > 0) {
+                player.isSurveiling = true;
+                player.surveilCard = player.library[player.library.length - 1];
+              }
+            }
+            this.addLog(`${player.name} plays ${card.name}${card.tapped ? ' (tapped)' : ''}.`);
+          } else {
+            // Non-land: timing check
+            const isInstant = card.type_line?.includes('Instant') || (card.keywords || []).includes('Flash');
+            if (!isInstant) {
+              if (!['main1', 'main2'].includes(this.state.phase))
+                throw new Error('Non-instants can only be played in main phases');
+              if (this.state.activePlayer !== playerIndex)
+                throw new Error('Non-instants can only be played on your turn');
+            }
+
+            // Target validation (Phase 1)
+            if (card.engineMetadata?.requiresTarget) {
+              if (!action.targets || action.targets.length === 0) {
+                throw new Error('This spell requires a target. Provide targets[] in your action.');
+              }
+            }
+
+            // Cost: Alternate or Normal
+            if (action.alternateCostDetails) {
+              this._validateAndDeductAlternateCost(player, playerIndex, action.alternateCostDetails, card);
+            } else if (card.mana_cost) {
+              this.payMana(player, card.mana_cost);
+            }
+
+            player.hand.splice(cardIdx, 1);
+
+            const isPermSpell = !card.type_line?.includes('Instant') && !card.type_line?.includes('Sorcery');
+
+            // Push onto the stack (Phase 1)
+            const stackEntry = {
+              instanceId: card.instanceId,
+              card,
+              ownerIndex: playerIndex,
+              targets: action.targets || [],
+              isPermSpell,
+            };
+            this.state.stack.push(stackEntry);
+            this.addLog(`${player.name} casts ${card.name}. (on stack)`);
+          }
+          return { success: true };
+        }
+
+        // ── Phase 1: Resolve Top of Stack ────────────────────
+        case 'resolve-top-of-stack': {
+          if (this.state.stack.length === 0) throw new Error('Stack is empty');
+          // Priority check: only active player or if opponent is passing
+          const top = this.state.stack.pop();
+          const ownerPlayer = this.state.players[top.ownerIndex];
+          const card = top.card;
+
+          if (top.isPermSpell) {
+            // Permanent → goes to battlefield
+            card.tapped = card.engineMetadata?.entersTapped || false;
+            card.summoningSick = card.type_line?.includes('Creature') && !(card.keywords || []).includes('Haste');
+            card.damage = 0;
+            ownerPlayer.battlefield.push(card);
+            this.addLog(`${card.name} resolves and enters the battlefield.`);
+            // ETB effects
+            if (card.engineMetadata?.etbEffects?.length > 0) {
+              this.resolveEffects(top.ownerIndex, card.engineMetadata.etbEffects, card.name, top.targets);
             }
           } else {
-            // Check timing
-            const isInstant = card.type_line.includes('Instant') || (card.keywords || []).includes('Flash');
-            if (!isInstant) {
-               if (!['main1', 'main2'].includes(this.state.phase)) throw new Error('Non-instants can only be played in main phases');
-               if (this.state.activePlayer !== playerIndex) throw new Error('Non-instants can only be played on your turn');
-            }
-
-            // Check and deduct mana
-            if (card.mana_cost) {
-               this.payMana(player, card.mana_cost);
-            }
-
-            
-            player.hand.splice(cardIdx, 1);
-            if (card.type_line.includes('Instant') || card.type_line.includes('Sorcery')) {
-               player.graveyard.push(card);
-               this.log(`${player.name} casts ${card.name}.`);
-               
-               // --- Execute Spell Effects ---
-               if (card.engineMetadata?.spellEffects?.length > 0) {
-                 this.resolveEffects(playerIndex, card.engineMetadata.spellEffects, card.name);
-               }
-            } else {
-               // Automatically handle "Enters the battlefield tapped" for non-land permanents
-               card.tapped = card.engineMetadata?.entersTapped || false;
-               card.summoningSick = card.type_line.includes('Creature') && !(card.keywords || []).includes('Haste');
-               card.damage = 0;
-               player.battlefield.push(card);
-               this.log(`${player.name} casts ${card.name}${card.tapped ? ' (enters tapped)' : ''}.`);
-
-               // --- Execute ETB Effects ---
-               if (card.engineMetadata?.etbEffects?.length > 0) {
-                 this.resolveEffects(playerIndex, card.engineMetadata.etbEffects, card.name);
-               }
+            // Instant / Sorcery → goes to graveyard
+            ownerPlayer.graveyard.push(card);
+            this.addLog(`${card.name} resolves.`);
+            if (card.engineMetadata?.spellEffects?.length > 0) {
+              this.resolveEffects(top.ownerIndex, card.engineMetadata.spellEffects, card.name, top.targets);
             }
           }
           return { success: true };
+        }
 
-        
-       
-        
-        case 'tap-land':
+        // ── Phase 2: Resolve Ponder ─────────────────────────
+        case 'resolve-rearrange': {
+          if (!player.isRearrangingLibrary) throw new Error('Not currently rearranging library');
+          // action.newOrder = array of instanceIds in desired order (top = last element)
+          const { newOrder, shuffle } = action;
+
+          if (shuffle && player.ponderCanShuffle) {
+            // Shuffle back the ponder cards into library
+            const ponderCards = player.ponderCards;
+            player.library.push(...ponderCards);
+            this._shuffle(player.library);
+            this.addLog(`${player.name} shuffles their library after Ponder.`);
+          } else {
+            // Put back in specified order (newOrder[0] goes deepest, last goes on top)
+            const ordered = newOrder
+              .map(iid => player.ponderCards.find(c => c.instanceId === iid))
+              .filter(Boolean);
+            // Push so ordered[last] is at top (pop position)
+            player.library.push(...ordered.reverse());
+            this.addLog(`${player.name} arranges the top cards of their library.`);
+          }
+
+          player.isRearrangingLibrary = false;
+          player.ponderCards = [];
+          player.ponderCanShuffle = false;
+
+          if (player.ponderThenDraw > 0) {
+            this.drawCards(playerIndex, player.ponderThenDraw);
+            this.addLog(`${player.name} draws ${player.ponderThenDraw} card(s).`);
+            player.ponderThenDraw = 0;
+          }
+          return { success: true };
+        }
+
+        // ── Phase 2: Resolve Brainstorm ──────────────────────
+        case 'resolve-brainstorm': {
+          if (!player.isBrainstorming) throw new Error('Not currently brainstorming');
+          const { topdeckCards } = action; // array of instanceIds to put back on top
+          const putBack = player.brainstormData?.putBack ?? 2;
+          if (!topdeckCards || topdeckCards.length !== putBack) {
+            throw new Error(`Must select exactly ${putBack} cards to put on top`);
+          }
+          // Place in reverse so first item in array ends up deepest of the two
+          [...topdeckCards].reverse().forEach(iid => {
+            const idx = player.hand.findIndex(c => c.instanceId === iid);
+            if (idx === -1) throw new Error(`Card ${iid} not in hand`);
+            const [card] = player.hand.splice(idx, 1);
+            player.library.push(card); // push = top (since library.pop() = draw)
+          });
+          this.addLog(`${player.name} puts ${putBack} cards on top of their library (Brainstorm).`);
+          player.isBrainstorming = false;
+          player.brainstormData = null;
+          return { success: true };
+        }
+
+        // ── Phase 4: Resolve Delver Reveal ───────────────────
+        case 'resolve-reveal': {
+          if (!player.isRevealingTopCard) throw new Error('Not currently revealing');
+          player.isRevealingTopCard = false;
+          player.revealedCard = null;
+          // Advance phase if we were paused on upkeep
+          if (this.state.phase === 'upkeep') this.advancePhase();
+          return { success: true };
+        }
+
+        // ── Phase 4: Activate Ability ────────────────────────
+        case 'activate-ability': {
+          // action.instanceId = permanent on battlefield
+          // action.abilityId  = id from engineMetadata.activatedAbilities
+          // action.targets    = optional targets
+          const bfCard = player.battlefield.find(c => c.instanceId === action.instanceId);
+          if (!bfCard) throw new Error('Card not found on battlefield');
+
+          const ability = (bfCard.engineMetadata?.activatedAbilities || [])
+            .find(a => a.id === action.abilityId);
+          if (!ability) throw new Error(`Ability ${action.abilityId} not found`);
+
+          // Pay cost
+          if (ability.costType === 'TAP') {
+            if (bfCard.tapped) throw new Error('Card is already tapped');
+            bfCard.tapped = true;
+          } else if (ability.costType === 'TAP_AND_SACRIFICE') {
+            if (bfCard.tapped) throw new Error('Card is already tapped');
+            const bfIdx = player.battlefield.findIndex(c => c.instanceId === action.instanceId);
+            player.battlefield.splice(bfIdx, 1);
+            player.graveyard.push(bfCard);
+          } else if (ability.costType === 'PAY_LIFE') {
+            if (player.life <= ability.costAmount) throw new Error(`Not enough life (need >${ability.costAmount})`);
+            player.life -= ability.costAmount;
+            this.addLog(`${player.name} pays ${ability.costAmount} life.`);
+          } else if (ability.costType === 'MANA') {
+            this.payMana(player, ability.cost);
+          }
+
+          // Execute effect
+          const eff = ability.effect;
+
+          if (eff.type === 'PUT_CREATURE_FROM_HAND') {
+            // Sneak Attack – pick a creature from hand
+            const { creatureInstanceId } = action;
+            if (!creatureInstanceId) throw new Error('Must specify creatureInstanceId to put onto battlefield');
+            const hIdx = player.hand.findIndex(c => c.instanceId === creatureInstanceId);
+            if (hIdx === -1) throw new Error('Creature not in hand');
+            const creature = player.hand.splice(hIdx, 1)[0];
+            if (!creature.type_line?.includes('Creature')) throw new Error('Must target a creature card');
+
+            // Add Haste
+            creature.keywords = [...(creature.keywords || []), eff.gainKeyword || 'Haste'];
+            creature.summoningSick = false;
+            creature.tapped = false;
+            creature.damage = 0;
+            player.battlefield.push(creature);
+            this.addLog(`${player.name} sneaks ${creature.name} onto the battlefield with Haste (Sneak Attack).`);
+
+            // Register delayed sacrifice trigger
+            if (eff.endStepTrigger) {
+              this.state.delayedTriggers.push({
+                type: eff.endStepTrigger.type,
+                instanceId: creature.instanceId,
+                ownerIndex: playerIndex,
+                onPhase: 'end_step',
+              });
+              this.addLog(`${creature.name} will be sacrificed at the next end step.`);
+            }
+
+          } else if (eff.type === 'VIAL_PUT_CREATURE') {
+            // Aether Vial – put a creature with CMC = charge counters
+            const charges = bfCard.counters?.charge || 0;
+            const { creatureInstanceId } = action;
+            if (!creatureInstanceId) throw new Error('Must specify creatureInstanceId');
+            const hIdx = player.hand.findIndex(c => c.instanceId === creatureInstanceId);
+            if (hIdx === -1) throw new Error('Creature not in hand');
+            const creature = player.hand[hIdx];
+            if (!creature.type_line?.includes('Creature')) throw new Error('Must target a creature');
+            if (parseInt(creature.cmc) !== charges) {
+              throw new Error(`Creature CMC (${creature.cmc}) must equal charge counters (${charges})`);
+            }
+            player.hand.splice(hIdx, 1);
+            creature.summoningSick = false;
+            creature.tapped = false;
+            creature.damage = 0;
+            player.battlefield.push(creature);
+            this.addLog(`${player.name} puts ${creature.name} onto the battlefield via Aether Vial (${charges} counters).`);
+
+          } else if (eff.type === 'DRAW') {
+            this.drawCards(playerIndex, eff.amount || 1);
+            this.addLog(`${player.name} draws ${eff.amount} from ${bfCard.name}.`);
+          } else if (eff.type === 'ADD_MANA') {
+            const color = eff.color === 'ANY' ? (action.color || 'C') : eff.color;
+            player.manaPool[color] = (player.manaPool[color] || 0) + eff.amount;
+            this.addLog(`${player.name} adds ${eff.amount}${color} from ${bfCard.name}.`);
+          } else if (eff.type === 'DESTROY') {
+            if (!action.targets || action.targets.length === 0) throw new Error('No target specified');
+            this._destroyTarget(action.targets[0], bfCard.name);
+          }
+
+          return { success: true };
+        }
+
+        // ── Show and Tell resolution ──────────────────────────
+        case 'resolve-show-and-tell': {
+          // action.permanentInstanceId = card to put from hand; null = pass
+          if (!player.isShowAndTelling) throw new Error('Not in Show and Tell');
+          if (action.permanentInstanceId) {
+            const hIdx = player.hand.findIndex(c => c.instanceId === action.permanentInstanceId);
+            if (hIdx === -1) throw new Error('Card not in hand');
+            const perm = player.hand.splice(hIdx, 1)[0];
+            perm.tapped = perm.engineMetadata?.entersTapped || false;
+            perm.summoningSick = perm.type_line?.includes('Creature') && !(perm.keywords || []).includes('Haste');
+            perm.damage = 0;
+            player.battlefield.push(perm);
+            this.addLog(`${player.name} puts ${perm.name} onto the battlefield (Show and Tell).`);
+            // ETB effects
+            if (perm.engineMetadata?.etbEffects?.length > 0) {
+              this.resolveEffects(playerIndex, perm.engineMetadata.etbEffects, perm.name, []);
+            }
+          }
+          player.isShowAndTelling = false;
+          return { success: true };
+        }
+
+        // ── Land tap ─────────────────────────────────────────
+        case 'tap-land': {
           const land = player.battlefield.find(c => c.instanceId === action.instanceId);
           if (!land) throw new Error('Land not on battlefield');
-          
-          // --- Fetch Land Intercept ---
+
           if (land.engineMetadata?.isFetchLand) {
-            if (player.life <= 1) throw new Error('Not enough life to activate');
-            
+            if (player.life <= 1) throw new Error('Not enough life to activate fetch');
             player.life -= 1;
-            const landIdx = player.battlefield.findIndex(c => c.instanceId === action.instanceId);
-            player.graveyard.push(player.battlefield.splice(landIdx, 1)[0]);
-            
+            const lIdx = player.battlefield.findIndex(c => c.instanceId === action.instanceId);
+            player.graveyard.push(player.battlefield.splice(lIdx, 1)[0]);
             player.isSearchingLibrary = true;
-            player.searchCriteria = land.engineMetadata.fetchTypes; // Pull types dynamically
-            this.log(`${player.name} activates ${land.name}, pays 1 life and sacrifices it to search their library.`);
+            player.searchCriteria = land.engineMetadata.fetchTypes;
+            this.addLog(`${player.name} activates ${land.name}, pays 1 life.`);
             return { success: true };
           }
 
           if (land.tapped) throw new Error('Land is already tapped');
           land.tapped = true;
-          
-          // Determine mana added
+
           let colorAdded = action.color;
-          
           if (!colorAdded && land.engineMetadata?.manaAbilities?.length > 0) {
-             // Default to the first available color if none specified
-             colorAdded = land.engineMetadata.manaAbilities[0]; 
+            colorAdded = land.engineMetadata.manaAbilities[0];
           } else if (!colorAdded) {
-             colorAdded = 'C'; // Fallback
+            colorAdded = 'C';
           }
-          
-          // Validate if the requested color is actually producible by this land
-          if (land.engineMetadata?.manaAbilities && !land.engineMetadata.manaAbilities.includes(colorAdded) && colorAdded !== 'C') {
-              throw new Error(`This land cannot produce ${colorAdded} mana.`);
+          if (land.engineMetadata?.manaAbilities && land.engineMetadata.manaAbilities.length > 0 &&
+              !land.engineMetadata.manaAbilities.includes(colorAdded)) {
+            throw new Error(`This land cannot produce ${colorAdded} mana`);
           }
-          
-          player.manaPool[colorAdded] = (player.manaPool[colorAdded] || 0) + 1;
-          this.log(`${player.name} taps ${land.name} for ${colorAdded}.`);
+
+          const amount = land.engineMetadata?.manaProducedAmount || 1;
+          player.manaPool[colorAdded] = (player.manaPool[colorAdded] || 0) + amount;
+          this.addLog(`${player.name} taps ${land.name} for ${amount}${colorAdded}.`);
           return { success: true };
+        }
 
-        case 'resolve-library-search':
-          if (!player.isSearchingLibrary) throw new Error('Not currently searching library');
-          
+        // ── Library search ───────────────────────────────────
+        case 'resolve-library-search': {
+          if (!player.isSearchingLibrary) throw new Error('Not searching library');
           if (action.targetInstanceId) {
-            const cardIdx = player.library.findIndex(c => c.instanceId === action.targetInstanceId);
-            if (cardIdx !== -1) {
-              const card = player.library[cardIdx];
-              
-              // Validate that the chosen card matches the fetch criteria (e.g. Island or Swamp)
-              if (player.searchCriteria) {
-                const isValid = player.searchCriteria.some(type => card.type_line && card.type_line.includes(type));
-                if (!isValid) {
-                  throw new Error(`Invalid target. You must find a card with one of these types: ${player.searchCriteria.join(', ')}`);
-                }
-              }
-
-              player.library.splice(cardIdx, 1);
-              card.tapped = false; // Put onto battlefield
-              player.battlefield.push(card);
-              this.log(`${player.name} puts ${card.name} onto the battlefield.`);
+            const cIdx = player.library.findIndex(c => c.instanceId === action.targetInstanceId);
+            if (cIdx === -1) throw new Error('Card not in library');
+            const found = player.library[cIdx];
+            if (player.searchCriteria) {
+              const valid = player.searchCriteria.some(t => found.type_line?.includes(t));
+              if (!valid) throw new Error(`Must find: ${player.searchCriteria.join(' or ')}`);
             }
+            player.library.splice(cIdx, 1);
+            found.tapped = false;
+            player.battlefield.push(found);
+            this.addLog(`${player.name} fetches ${found.name}.`);
           } else {
-            this.log(`${player.name} fails to find a card.`);
+            this.addLog(`${player.name} fails to find.`);
           }
-          
-          
           player.isSearchingLibrary = false;
           player.searchCriteria = null;
-          // Shuffle library
-          for (let i = player.library.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [player.library[i], player.library[j]] = [player.library[j], player.library[i]];
-          }
-          this.log(`${player.name} shuffles their library.`);
+          this._shuffle(player.library);
+          this.addLog(`${player.name} shuffles.`);
           return { success: true };
+        }
 
-        
-        case 'resolve-surveil':
-          if (!player.isSurveiling) throw new Error('Not currently surveiling');
-          
-          const topCardSurveil = player.library.shift(); // Remove from top
-          
+        // ── Surveil ──────────────────────────────────────────
+        case 'resolve-surveil': {
+          if (!player.isSurveiling) throw new Error('Not surveiling');
+          const topCard = player.library.pop();
           if (action.keepOnTop) {
-            player.library.unshift(topCardSurveil); // Put back
-            this.log(`${player.name} leaves the card on top of their library.`);
+            player.library.push(topCard);
+            this.addLog(`${player.name} keeps card on top.`);
           } else {
-            player.graveyard.push(topCardSurveil); // Put in graveyard
-            this.log(`${player.name} puts the card into their graveyard.`);
+            player.graveyard.push(topCard);
+            this.addLog(`${player.name} puts card in graveyard.`);
           }
-          
           player.isSurveiling = false;
           player.surveilCard = null;
           return { success: true };
+        }
 
-        case 'resolve-scry':
-          if (!player.isScrying) throw new Error('Not currently scrying');
-          
-          const topCardScry = player.library.shift();
-          
+        // ── Scry ─────────────────────────────────────────────
+        case 'resolve-scry': {
+          if (!player.isScrying) throw new Error('Not scrying');
+          const topCard = player.library.pop();
           if (action.keepOnTop) {
-            player.library.unshift(topCardScry);
-            this.log(`${player.name} puts a card on top of their library.`);
+            player.library.push(topCard);
+            this.addLog(`${player.name} keeps card on top (Scry).`);
           } else {
-            player.library.push(topCardScry); // Push goes to the bottom of the array
-            this.log(`${player.name} puts a card on the bottom of their library.`);
+            player.library.unshift(topCard);
+            this.addLog(`${player.name} puts card on bottom (Scry).`);
           }
-          
           player.isScrying = false;
           player.scryCard = null;
           return { success: true };
+        }
 
-        case 'declare-attackers':
-          if (this.state.phase !== 'combat_attackers') throw new Error('Not declare attackers phase');
+        // ── Combat ───────────────────────────────────────────
+        case 'declare-attackers': {
+          if (this.state.phase !== 'combat_attackers') throw new Error('Not attacker phase');
           if (this.state.activePlayer !== playerIndex) throw new Error('Not your turn');
-
           action.attackers.forEach(attId => {
             const c = player.battlefield.find(card => card.instanceId === attId);
-            if (!c) throw new Error(`Card ${attId} not found`);
+            if (!c) throw new Error(`${attId} not found`);
             if (c.tapped) throw new Error(`${c.name} is tapped`);
             if (c.summoningSick) throw new Error(`${c.name} has summoning sickness`);
             if ((c.keywords || []).includes('Defender')) throw new Error(`${c.name} has Defender`);
-
-            if (!(c.keywords || []).includes('Vigilance')) {
-              c.tapped = true;
-            }
+            if (!(c.keywords || []).includes('Vigilance')) c.tapped = true;
             this.state.combatState.attackers.push({ instanceId: attId, attackerIndex: playerIndex });
           });
-          
-          this.log(`${player.name} declares ${action.attackers.length} attackers.`);
+          this.addLog(`${player.name} declares ${action.attackers.length} attacker(s).`);
           this.advancePhase();
           return { success: true };
+        }
 
-        case 'declare-blockers':
-          if (this.state.phase !== 'combat_blockers') throw new Error('Not declare blockers phase');
+        case 'declare-blockers': {
+          if (this.state.phase !== 'combat_blockers') throw new Error('Not blocker phase');
           if (this.state.activePlayer === playerIndex) throw new Error('Active player cannot block');
 
           const tempBlockers = [];
-
           action.blockers.forEach(b => {
-             const blocker = player.battlefield.find(card => card.instanceId === b.blockerInstanceId);
-             if (!blocker) throw new Error(`Blocker ${b.blockerInstanceId} not found`);
-             if (blocker.tapped) throw new Error(`${blocker.name} is tapped`);
-             
-             let blockInfo = tempBlockers.find(x => x.attackerInstanceId === b.attackerInstanceId);
-             if (!blockInfo) {
-                blockInfo = { attackerInstanceId: b.attackerInstanceId, blockerInstanceIds: [] };
-                tempBlockers.push(blockInfo);
-             }
-             blockInfo.blockerInstanceIds.push(b.blockerInstanceId);
+            const blocker = player.battlefield.find(c => c.instanceId === b.blockerInstanceId);
+            if (!blocker) throw new Error(`${b.blockerInstanceId} not found`);
+            if (blocker.tapped) throw new Error(`${blocker.name} is tapped`);
 
-             // Handle Reach/Flying restrictions
-             const attackerPlayerIdx = this.state.activePlayer;
-             const attackerCard = this.state.players[attackerPlayerIdx].battlefield.find(c => c.instanceId === b.attackerInstanceId);
-             if (attackerCard) {
-                if ((attackerCard.keywords || []).includes('Flying')) {
-                   if (!(blocker.keywords || []).includes('Flying') && !(blocker.keywords || []).includes('Reach')) {
-                      throw new Error(`${blocker.name} cannot block flying ${attackerCard.name}`);
-                   }
-                }
-             }
+            let blockInfo = tempBlockers.find(x => x.attackerInstanceId === b.attackerInstanceId);
+            if (!blockInfo) {
+              blockInfo = { attackerInstanceId: b.attackerInstanceId, blockerInstanceIds: [] };
+              tempBlockers.push(blockInfo);
+            }
+            blockInfo.blockerInstanceIds.push(b.blockerInstanceId);
+
+            const attackerCard = this.state.players[this.state.activePlayer].battlefield.find(c => c.instanceId === b.attackerInstanceId);
+            if (attackerCard && (attackerCard.keywords || []).includes('Flying')) {
+              if (!(blocker.keywords || []).includes('Flying') && !(blocker.keywords || []).includes('Reach')) {
+                throw new Error(`${blocker.name} cannot block flying ${attackerCard.name}`);
+              }
+            }
           });
 
-          // Validate Menace
-          const attackerPlayerIdx = this.state.activePlayer;
           tempBlockers.forEach(b => {
-             const attackerCard = this.state.players[attackerPlayerIdx].battlefield.find(c => c.instanceId === b.attackerInstanceId);
-             if (attackerCard && (attackerCard.keywords || []).includes('Menace')) {
-                 if (b.blockerInstanceIds.length < 2) {
-                     throw new Error(`${attackerCard.name} has Menace and must be blocked by 2 or more creatures`);
-                 }
-             }
+            const attacker = this.state.players[this.state.activePlayer].battlefield.find(c => c.instanceId === b.attackerInstanceId);
+            if (attacker && (attacker.keywords || []).includes('Menace') && b.blockerInstanceIds.length < 2) {
+              throw new Error(`${attacker.name} has Menace – must be blocked by 2+ creatures`);
+            }
           });
 
           this.state.combatState.blockers = tempBlockers;
-          
-          this.log(`${player.name} declares ${action.blockers.length} blockers.`);
+          this.addLog(`${player.name} declares blockers.`);
           this.advancePhase();
           return { success: true };
+        }
+
+        case 'discard': {
+          const dIdx = player.hand.findIndex(c => c.instanceId === action.cardInstanceId);
+          if (dIdx === -1) throw new Error('Card not in hand');
+          const [disc] = player.hand.splice(dIdx, 1);
+          player.graveyard.push(disc);
+          this.addLog(`${player.name} discards ${disc.name}.`);
+          return { success: true };
+        }
 
         case 'next-phase':
         case 'pass-priority':
-          // Block during mulligan - must keep hand first
-          if (this.state.phase === 'mulligan') {
-            return { success: false, error: 'Must complete mulligan first (Keep or Mulligan)' };
-          }
-          // In a single-player game or when it's your turn, advance to next phase
+        case 'pass': {
+          if (this.state.phase === 'mulligan') return { success: false, error: 'Complete mulligan first' };
           if (this.state.activePlayer === playerIndex || this.state.mode === '1v0') {
             this.advancePhase();
-            this.log(`${player.name} passes priority.`);
+            this.addLog(`${player.name} passes.`);
             return { success: true };
           }
           return { success: false, error: 'Not your turn' };
+        }
 
         default:
-          return { success: false, error: 'Unknown action type' };
+          return { success: false, error: `Unknown action: ${action.type}` };
       }
     } catch (e) {
       return { success: false, error: e.message };
     }
   }
 
+  // ── Mana payment ────────────────────────────────────────────
   payMana(player, manaCostStr) {
     const regex = /\{([^}]+)\}/g;
     let match;
     const cost = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0, generic: 0 };
-    
+
     while ((match = regex.exec(manaCostStr)) !== null) {
       const sym = match[1];
-      if (!isNaN(parseInt(sym))) {
-        cost.generic += parseInt(sym);
+      if (!isNaN(parseInt(sym, 10))) {
+        cost.generic += parseInt(sym, 10);
+      } else if (sym === 'X') {
+        // X costs are 0 for now
+      } else if (sym.includes('/')) {
+        // Phyrexian / Hybrid – simplified: treat first part as colored
+        const first = sym.split('/')[0];
+        if (cost[first] !== undefined) cost[first]++;
+        else cost.generic++;
       } else if (cost[sym] !== undefined) {
         cost[sym]++;
       }
     }
 
-    // Check colored mana
-    for (let c of ['W', 'U', 'B', 'R', 'G', 'C']) {
-      if (player.manaPool[c] < cost[c]) {
-        throw new Error(`Not enough ${c} mana`);
-      }
+    for (const c of ['W', 'U', 'B', 'R', 'G', 'C']) {
+      if ((player.manaPool[c] || 0) < cost[c]) throw new Error(`Not enough ${c} mana`);
     }
 
-    // Check total mana for generic
-    let availableGeneric = 0;
-    for (let c of ['W', 'U', 'B', 'R', 'G', 'C']) {
-      availableGeneric += (player.manaPool[c] - cost[c]);
+    let availableForGeneric = 0;
+    for (const c of ['W', 'U', 'B', 'R', 'G', 'C']) {
+      availableForGeneric += (player.manaPool[c] || 0) - cost[c];
     }
-    
-    if (availableGeneric < cost.generic) {
-      throw new Error('Not enough total mana for generic cost');
-    }
+    if (availableForGeneric < cost.generic) throw new Error('Not enough mana for generic cost');
 
-    // Deduct colored
-    for (let c of ['W', 'U', 'B', 'R', 'G', 'C']) {
-      player.manaPool[c] -= cost[c];
-    }
-    
-    // Deduct generic (greedy order)
-    let remainingGeneric = cost.generic;
-    for (let c of ['C', 'W', 'U', 'B', 'R', 'G']) { // Try colorless first
-      if (remainingGeneric <= 0) break;
-      const deduct = Math.min(player.manaPool[c], remainingGeneric);
+    for (const c of ['W', 'U', 'B', 'R', 'G', 'C']) player.manaPool[c] -= cost[c];
+
+    let remaining = cost.generic;
+    for (const c of ['C', 'G', 'R', 'B', 'U', 'W']) {
+      if (remaining <= 0) break;
+      const deduct = Math.min(player.manaPool[c] || 0, remaining);
       player.manaPool[c] -= deduct;
-      remainingGeneric -= deduct;
+      remaining -= deduct;
     }
   }
 }
