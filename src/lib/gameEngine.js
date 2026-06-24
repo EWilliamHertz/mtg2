@@ -55,6 +55,7 @@ export class GameEngine {
       stack: [],            // ← Phase 1: the spell stack
       delayedTriggers: [],  // ← Phase 4: end-step sacrifices etc.
       combatState: null,
+      stormCount: 0,
       gameOver: false,
       winner: null,
       winReason: null,
@@ -329,6 +330,7 @@ export class GameEngine {
       case 'cleanup':
         this.addLog(`${player.name} – Cleanup`);
         this.state.players.forEach(p => p.battlefield.forEach(c => c.damage = 0));
+        this.state.stormCount = 0;
         this.advancePhase();
         break;
     }
@@ -949,6 +951,7 @@ export class GameEngine {
               isPermSpell,
             };
             this.state.stack.push(stackEntry);
+            this.state.stormCount++;
             this.addLog(`${player.name} casts ${card.name}. (on stack)`);
 
             // Process cast triggers
@@ -1085,6 +1088,14 @@ export class GameEngine {
             const bfIdx = player.battlefield.findIndex(c => c.instanceId === action.instanceId);
             player.battlefield.splice(bfIdx, 1);
             player.graveyard.push(bfCard);
+          } else if (ability.costType === 'SACRIFICE_AND_DISCARD') {
+            const bfIdx = player.battlefield.findIndex(c => c.instanceId === action.instanceId);
+            player.battlefield.splice(bfIdx, 1);
+            player.graveyard.push(bfCard);
+            // Discard hand
+            player.graveyard.push(...player.hand);
+            player.hand = [];
+            this.addLog(`${player.name} discards their hand.`);
           } else if (ability.costType === 'PAY_LIFE') {
             if (player.life <= ability.costAmount) throw new Error(`Not enough life (need >${ability.costAmount})`);
             player.life -= ability.costAmount;

@@ -372,6 +372,7 @@ function ActivatedAbilitiesModal({ card, onConfirm, onCancel, tapLand }) {
   const abilities = card?.engineMetadata?.activatedAbilities || [];
   const isLand = card?.type_line?.includes('Land');
   const isFetch = card?.engineMetadata?.isFetchLand;
+  const manaAbilities = card?.engineMetadata?.manaAbilities || [];
   
   if (abilities.length === 0 && !isLand) return null;
 
@@ -379,16 +380,35 @@ function ActivatedAbilitiesModal({ card, onConfirm, onCancel, tapLand }) {
     <div className={styles.altCostModal}>
       <h2 className={styles.modalTitle}>⚡ Abilities — {card?.name}</h2>
       <div className={styles.altCostOptions}>
-        {isLand && (
-          <button className={styles.altCostBtn} onClick={tapLand}>
-            {isFetch ? 'Pay 1 life, Sacrifice: Fetch Land' : 'Tap for Mana'}
+        {isLand && isFetch && (
+          <button className={styles.altCostBtn} onClick={() => tapLand(null)}>
+            Pay 1 life, Sacrifice: Fetch Land
           </button>
         )}
-        {abilities.map(ab => (
-          <button key={ab.id} className={styles.altCostBtn} onClick={() => onConfirm(ab)}>
-            {ab.description || `Activate ${ab.id}`}
+        {isLand && !isFetch && manaAbilities.length > 0 && manaAbilities.map(color => (
+          <button key={`mana-${color}`} className={styles.altCostBtn} onClick={() => tapLand(color)}>
+            Tap for {color} Mana
           </button>
         ))}
+        {isLand && !isFetch && manaAbilities.length === 0 && (
+          <button className={styles.altCostBtn} onClick={() => tapLand(null)}>
+            Tap for Mana
+          </button>
+        )}
+        {abilities.map(ab => {
+          if (ab.effect?.type === 'ADD_MANA' && ab.effect?.color === 'ANY') {
+            return ['W','U','B','R','G'].map(c => (
+              <button key={`${ab.id}-${c}`} className={styles.altCostBtn} onClick={() => onConfirm(ab, c)}>
+                {ab.description} ({c})
+              </button>
+            ));
+          }
+          return (
+            <button key={ab.id} className={styles.altCostBtn} onClick={() => onConfirm(ab)}>
+              {ab.description || `Activate ${ab.id}`}
+            </button>
+          );
+        })}
       </div>
       <div className={styles.btnRow}>
         <button className={styles.cancelBtn} onClick={onCancel}>Cancel</button>
@@ -543,6 +563,7 @@ function GameContent() {
       handleAction('activate-ability', {
         instanceId: targetingCard.instanceId,
         abilityId: targetingCard._pendingAbilityId,
+        color: targetingCard._pendingColor,
         targets: [targetRef]
       });
       setTargetingCard(null);
@@ -558,21 +579,21 @@ function GameContent() {
     setTargetingCard(null);
   }, [targetingCard, handleAction]);
 
-  const tapLand = useCallback((instanceId) => {
+  const tapLand = useCallback((instanceId, color = null) => {
     handleGlobalLeave();
-    handleAction('tap-land', { instanceId });
+    handleAction('tap-land', { instanceId, color });
     setActivatedAbilityCard(null);
   }, [handleAction, handleGlobalLeave]);
 
-  const confirmActivateAbility = useCallback((ability) => {
+  const confirmActivateAbility = useCallback((ability, color = null) => {
     const card = activatedAbilityCard;
     if (!card) return;
     setActivatedAbilityCard(null);
 
     if (ability.requiresTarget) {
-      setTargetingCard({ ...card, _pendingAbilityId: ability.id });
+      setTargetingCard({ ...card, _pendingAbilityId: ability.id, _pendingColor: color });
     } else {
-      handleAction('activate-ability', { instanceId: card.instanceId, abilityId: ability.id });
+      handleAction('activate-ability', { instanceId: card.instanceId, abilityId: ability.id, color });
     }
   }, [activatedAbilityCard, handleAction]);
 
@@ -791,6 +812,9 @@ function GameContent() {
           <h2 className={styles.turnHeading}>Turn {gameState.turn || 1}</h2>
           <div className={styles.turnIndicator}>
             {isMyTurn ? '⚡ Your Turn' : `${opponentState?.name ?? "Opponent"}'s Turn`}
+          </div>
+          <div className={styles.stormIndicator}>
+            🌪 Storm Count: {gameState.stormCount || 0}
           </div>
         </div>
         <div className={styles.sidebarSection}>
@@ -1032,9 +1056,9 @@ function GameContent() {
         <div className={styles.overlay}>
           <ActivatedAbilitiesModal
             card={activatedAbilityCard}
-            onConfirm={confirmActivateAbility}
+            onConfirm={(ability, color) => confirmActivateAbility(ability, color)}
             onCancel={() => setActivatedAbilityCard(null)}
-            tapLand={() => tapLand(activatedAbilityCard.instanceId)}
+            tapLand={(color) => tapLand(activatedAbilityCard.instanceId, color)}
           />
         </div>
       )}

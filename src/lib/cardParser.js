@@ -97,7 +97,6 @@ export function parseCardData(rawCard) {
     const surveilMatch = effectText.match(/surveil (\d+)/i);
     if (surveilMatch)
       meta.etbEffects.push({ type: 'SURVEIL', amount: parseInt(surveilMatch[1], 10) });
-
     const millMatch = effectText.match(/mills? (\d+) cards?/i);
     if (millMatch)
       meta.etbEffects.push({ type: 'MILL', amount: parseInt(millMatch[1], 10) });
@@ -114,6 +113,12 @@ export function parseCardData(rawCard) {
         power: pw, toughness: tgh, subtype: createTokenMatch[2]
       });
     }
+  }
+
+  // Special case: Surveil Lands ("enters the battlefield tapped. When it does, surveil X")
+  const surveilLandMatch = oracle.match(/enters the battlefield tapped\.\s*When it does,\s*surveil (\d+)/i);
+  if (surveilLandMatch) {
+    meta.etbEffects.push({ type: 'SURVEIL', amount: parseInt(surveilLandMatch[1], 10) });
   }
 
   // ── 3. Instant & Sorcery Spell Effects ──────────────────────
@@ -378,6 +383,16 @@ export function parseCardData(rawCard) {
       costType: 'TAP_AND_SACRIFICE',
       effect: { type: 'ADD_MANA', amount: 1, color: 'ANY' },
       description: 'Tap, Sacrifice: Add one mana of any color.'
+    });
+  }
+
+  // Lion's Eye Diamond
+  if (/Sacrifice.+?Discard your hand.+?Add three mana of any one color/i.test(oracle)) {
+    meta.activatedAbilities.push({
+      id: 'led_mana',
+      costType: 'SACRIFICE_AND_DISCARD',
+      effect: { type: 'ADD_MANA', amount: 3, color: 'ANY' },
+      description: 'Sacrifice, Discard hand: Add 3 mana of any color.'
     });
   }
 

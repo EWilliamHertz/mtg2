@@ -93,6 +93,7 @@
   flex-direction: column;
   padding: 10px;
   position: relative;
+  min-height: 0;
 }
 
 .battlefieldWrapper {
@@ -102,6 +103,7 @@
   background: rgba(255,255,255,0.015);
   border-radius: 10px;
   border: 1px solid rgba(255,255,255,0.05);
+  min-height: 0;
 }
 
 .handWrapper {
@@ -138,6 +140,14 @@
   font-size: 12px;
   color: #94a3b8;
   font-weight: 500;
+}
+
+.stormIndicator {
+  text-align: center;
+  font-size: 13px;
+  font-weight: bold;
+  color: #38bdf8;
+  margin-top: 6px;
 }
 
 .gameLogWrapper {
