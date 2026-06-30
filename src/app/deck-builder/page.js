@@ -72,7 +72,7 @@ export default function DeckBuilder() {
       params.append('cmc_max', cmcRange[1]);
       params.append('page', p);
 
-      const res = await fetch(`/api/cards?${params.toString()}`);
+      const res = await fetch(`/ouyrie/api/cards?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setSearchResults(prev => reset ? data.cards : [...prev, ...data.cards]);
@@ -108,7 +108,7 @@ export default function DeckBuilder() {
 
   const fetchSavedDecks = async () => {
     try {
-      const res = await fetch('/api/decks');
+      const res = await fetch('/ouyrie/api/decks');
       if (res.ok) {
         const data = await res.json();
         setSavedDecks(Array.isArray(data) ? data : []);
@@ -162,7 +162,7 @@ export default function DeckBuilder() {
     setSelectedDeckId(id);
     if (!id) return;
     try {
-      const res = await fetch(`/api/decks/${id}`);
+      const res = await fetch(`/ouyrie/api/decks/${id}`);
       if (res.ok) {
         const data = await res.json();
         setDeckName(data.name || 'Loaded Deck');
@@ -220,7 +220,7 @@ export default function DeckBuilder() {
   const deleteDeck = async () => {
     if (!selectedDeckId) return;
     try {
-      const res = await fetch(`/api/decks/${selectedDeckId}`, { method: 'DELETE' });
+      const res = await fetch(`/ouyrie/api/decks/${selectedDeckId}`, { method: 'DELETE' });
       if (res.ok) {
         alert('Deck deleted.');
         newDeck();
@@ -264,7 +264,7 @@ export default function DeckBuilder() {
         const qty = parseInt(match[1], 10);
         const name = match[2];
         try {
-          const res = await fetch(`/api/cards?q=${encodeURIComponent(name)}&exact=true&limit=1`);
+          const res = await fetch(`/ouyrie/api/cards?q=${encodeURIComponent(name)}&exact=true&limit=1`);
           if (res.ok) {
             const data = await res.json();
             if (data.cards && data.cards.length > 0) {

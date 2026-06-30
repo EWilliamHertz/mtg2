@@ -17,7 +17,7 @@ export default function LandingPage() {
   useEffect(() => {
     async function checkAuth() {
       try {
-        const res = await fetch('/api/auth/me');
+        const res = await fetch('/ouyrie/api/auth/me');
         if (res.ok) {
           const data = await res.json();
           setUser(data.user);
@@ -28,7 +28,7 @@ export default function LandingPage() {
 
     async function fetchStats() {
       try {
-        const res = await fetch('/api/stats');
+        const res = await fetch('/ouyrie/api/stats');
         if (res.ok) {
           const data = await res.json();
           setCardCount(data.cardCount);
@@ -42,7 +42,7 @@ export default function LandingPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
-    const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
+    const endpoint = authMode === 'login' ? '/ouyrie/api/auth/login' : '/ouyrie/api/auth/register';
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -64,7 +64,7 @@ export default function LandingPage() {
   };
 
   const handleLogout = async () => {
-    await fetch('/api/auth/me', { method: 'POST' });
+    await fetch('/ouyrie/api/auth/me', { method: 'POST' });
     setUser(null);
   };
 

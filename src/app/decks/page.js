@@ -12,7 +12,7 @@ export default function DecksManager() {
 
   const fetchDecks = async () => {
     try {
-      const res = await fetch('/api/decks');
+      const res = await fetch('/ouyrie/api/decks');
       if (res.ok) {
         const data = await res.json();
         setDecks(data);
@@ -27,7 +27,7 @@ export default function DecksManager() {
   const deleteDeck = async (id) => {
     if (!window.confirm('Are you sure you want to delete this deck?')) return;
     try {
-      const res = await fetch(`/api/decks/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/ouyrie/api/decks/${id}`, { method: 'DELETE' });
       if (res.ok) {
         setDecks(prev => prev.filter(d => d.id !== id));
       } else {

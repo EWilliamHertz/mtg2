@@ -37,7 +37,7 @@ export default function PlayPage() {
   useEffect(() => {
     async function checkAuth() {
       try {
-        const res = await fetch('/api/auth/me');
+        const res = await fetch('/ouyrie/api/auth/me');
         if (res.ok) {
           const data = await res.json();
           setUser(data.user);
@@ -73,7 +73,7 @@ export default function PlayPage() {
   };
 
   const handleLogout = async () => {
-    await fetch('/api/auth/me', { method: 'POST' });
+    await fetch('/ouyrie/api/auth/me', { method: 'POST' });
     setUser(null);
   };
 
@@ -81,7 +81,7 @@ export default function PlayPage() {
   useEffect(() => {
     async function fetchDecks() {
       try {
-        const res = await fetch('/api/decks');
+        const res = await fetch('/ouyrie/api/decks');
         if (res.ok) {
           const data = await res.json();
           setDecks(data);
