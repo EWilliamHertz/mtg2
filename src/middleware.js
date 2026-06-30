@@ -42,14 +42,8 @@ export async function middleware(request) {
     return NextResponse.redirect(`${HATAKE_LOGIN_URL}?redirectUrl=${returnUrl}`);
   }
 
-  // If authenticated, bypass legacy menus and mount core Game Board (play)
-  const legacyMenus = [
-    "/",
-    "/deck-builder",
-    "/decks"
-  ];
-
-  if (legacyMenus.includes(pathname)) {
+  // If authenticated, bypass the legacy landing page, but let them access deck builder
+  if (pathname === '/') {
     // With Next.js basePath configured, we can just redirect to /play
     return NextResponse.redirect(new URL("/play", request.url));
   }

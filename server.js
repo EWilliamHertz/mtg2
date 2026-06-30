@@ -16,7 +16,9 @@ app.prepare().then(() => {
     handle(req, res, parsedUrl);
   });
   
-  const io = new Server(server);
+  const io = new Server(server, {
+    path: '/ouyrie/socket.io'
+  });
   registerSocketHandlers(io);
   
   server.listen(port, () => console.log(`> Ready on http://localhost:${port}`));

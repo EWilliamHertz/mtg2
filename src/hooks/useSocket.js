@@ -8,8 +8,9 @@ export function useSocket() {
 
   useEffect(() => {
     // Connect to external socket server (or localhost for dev)
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || '';
     socketRef.current = io(socketUrl, {
+      path: '/ouyrie/socket.io',
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
