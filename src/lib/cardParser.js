@@ -418,6 +418,70 @@ export function parseCardData(rawCard) {
     meta.etbEffects.push({ type: 'MURKTIDE_COUNTERS' });
   }
 
+  // ── 10. Additional Mechanics (Equip, Planeswalkers, Flashback, etc.) ──
+
+  // Equip
+  const equipMatch = oracle.match(/Equip (\{.+?\})/i);
+  if (equipMatch) {
+    meta.activatedAbilities.push({
+      id: 'equip',
+      costType: 'MANA',
+      cost: equipMatch[1],
+      effect: { type: 'EQUIP' },
+      requiresTarget: true,
+      validTargets: ['creature'],
+      description: `Equip ${equipMatch[1]}`
+    });
+  }
+
+  // Planeswalker Loyalty Abilities
+  // Matches e.g., "[+1]:", "[-2]:", "[0]:"
+  const loyaltyRegex = /\[([+-]?\d+|[X])\]:\s*(.*?)(?:\n|$)/gi;
+  let loyaltyMatch;
+  while ((loyaltyMatch = loyaltyRegex.exec(oracle)) !== null) {
+    const cost = loyaltyMatch[1];
+    const effectText = loyaltyMatch[2];
+    meta.activatedAbilities.push({
+      id: `loyalty_${cost}`,
+      costType: 'LOYALTY',
+      costAmount: cost === 'X' ? 'X' : parseInt(cost, 10),
+      effect: { type: 'PLANESWALKER_ABILITY', rawText: effectText },
+      description: `[${cost}]: ${effectText}`
+    });
+  }
+
+  // Flashback
+  const flashbackMatch = oracle.match(/Flashback (\{.+?\})/i);
+  if (flashbackMatch) {
+    meta.alternateCosts.push({
+      id: 'flashback',
+      description: `Flashback ${flashbackMatch[1]}`,
+      conditions: [
+        { type: 'FLASHBACK', cost: flashbackMatch[1] }
+      ]
+    });
+  }
+
+  // Storm
+  if (/\bStorm\b/i.test(oracle) || /When you cast this spell, copy it for each spell cast before it/i.test(oracle)) {
+    meta.spellEffects.push({ type: 'STORM' });
+  }
+
+  // Ward
+  const wardMatch = oracle.match(/Ward (\{.+?\}|pay \d+ life|discard a card)/i);
+  if (wardMatch) {
+    meta.ward = wardMatch[1];
+  }
+
+  // Death Triggers
+  if (/Whenever a creature dies/i.test(oracle)) {
+    meta.deathTriggers = meta.deathTriggers || [];
+    meta.deathTriggers.push({ type: 'GENERIC_CREATURE_DEATH', rawText: oracle });
+  }
+  if (/When .+? dies, /i.test(oracle)) {
+    meta.deathTriggers = meta.deathTriggers || [];
+    meta.deathTriggers.push({ type: 'SELF_DEATH', rawText: oracle });
+  }
 
   return card;
 }
