@@ -115,37 +115,52 @@ export function registerSocketHandlers(io) {
           
           try {
             for (const p of lobby.players) {
-              const res = await pool.query(
-                `SELECT c.*, dc.quantity, dc.is_sideboard 
-                 FROM deck_cards dc 
-                 JOIN cards c ON dc.card_id = c.scryfall_id 
-                 WHERE dc.deck_id = $1`,
-                [p.deckId]
-              );
-              
+              const { default: prisma } = await import('./db.js');
+              const deckRow = await prisma.deck.findUnique({
+                where: { id: p.deckId }
+              });
+
               const mainDeck = [];
               const sideboard = [];
-              for (const row of res.rows) {
-                const cardData = {
-                  scryfall_id: row.scryfall_id,
-                  card_id: row.card_id,
-                  name: row.name,
-                  mana_cost: row.mana_cost,
-                  cmc: row.cmc,
-                  type_line: row.type_line,
-                  oracle_text: row.oracle_text,
-                  power: row.power,
-                  toughness: row.toughness,
-                  colors: row.colors,
-                  color_identity: row.color_identity,
-                  keywords: row.keywords,
-                  rarity: row.rarity,
-                  image_uri: row.image_uri,
-                  quantity: row.quantity
-                };
-                for (let i = 0; i < row.quantity; i++) {
-                  if (row.is_sideboard) sideboard.push(cardData);
-                  else mainDeck.push(cardData);
+
+              if (deckRow && deckRow.cards) {
+                let parsedCards;
+                if (typeof deckRow.cards === 'string') {
+                   parsedCards = JSON.parse(deckRow.cards);
+                } else {
+                   parsedCards = deckRow.cards;
+                }
+                
+                if (Array.isArray(parsedCards)) {
+                  for (const entry of parsedCards) {
+                    const cardRef = await prisma.cardReference.findUnique({
+                      where: { apiId: entry.cardId }
+                    });
+                    if (cardRef) {
+                      const payload = cardRef.apiPayload;
+                      const cardData = {
+                        scryfall_id: payload.id,
+                        card_id: payload.id,
+                        name: payload.name,
+                        mana_cost: payload.mana_cost,
+                        cmc: payload.cmc,
+                        type_line: payload.type_line,
+                        oracle_text: payload.oracle_text,
+                        power: payload.power,
+                        toughness: payload.toughness,
+                        colors: payload.colors,
+                        color_identity: payload.color_identity,
+                        keywords: payload.keywords,
+                        rarity: payload.rarity,
+                        image_uri: payload.image_uris?.normal || payload.card_faces?.[0]?.image_uris?.normal,
+                        quantity: entry.quantity
+                      };
+                      for (let i = 0; i < entry.quantity; i++) {
+                        if (entry.is_sideboard) sideboard.push(cardData);
+                        else mainDeck.push(cardData);
+                      }
+                    }
+                  }
                 }
               }
               p.deck = mainDeck;

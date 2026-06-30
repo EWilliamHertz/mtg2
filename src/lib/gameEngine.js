@@ -271,6 +271,7 @@ export class GameEngine {
         player.battlefield.forEach(c => {
           c.tapped = false;
           c.summoningSick = false;
+          c.loyaltyUsedThisTurn = false;
         });
         player.landsPlayedThisTurn = 0;
         this.advancePhase();
@@ -646,10 +647,17 @@ export class GameEngine {
             const stackTarget = this.state.stack.find(s => s.instanceId === targets[0]);
             if (stackTarget) {
               this.state.stack = this.state.stack.filter(s => s.instanceId !== targets[0]);
-              // Put it in graveyard
+              // Put it in graveyard or exile
               const ownerPlayer = this.state.players[stackTarget.ownerIndex];
-              if (ownerPlayer) ownerPlayer.graveyard.push(stackTarget.card);
-              this.addLog(`${sourceName} counters ${stackTarget.card?.name || 'a spell'}.`);
+              if (ownerPlayer) {
+                if (stackTarget.isFlashback) {
+                  ownerPlayer.exile.push(stackTarget.card);
+                  this.addLog(`${sourceName} counters ${stackTarget.card?.name || 'a spell'}, and it is exiled.`);
+                } else {
+                  ownerPlayer.graveyard.push(stackTarget.card);
+                  this.addLog(`${sourceName} counters ${stackTarget.card?.name || 'a spell'}.`);
+                }
+              }
             }
           }
           break;
@@ -794,6 +802,11 @@ export class GameEngine {
           this.addLog(`${player.name} exiles ${exCard.name} from hand for alternate cost.`);
           break;
         }
+        case 'FLASHBACK': {
+          this.payMana(player, cond.cost);
+          this.addLog(`${player.name} pays Flashback cost (${cond.cost}).`);
+          break;
+        }
         case 'RETURN_LAND_TO_HAND': {
           // altCostDetails.returnLandInstanceId must be provided
           const { returnLandInstanceId } = altCostDetails;
@@ -886,9 +899,17 @@ export class GameEngine {
           if (this.state.phase === 'mulligan') throw new Error('Must complete mulligan first');
           if (this.state.priorityPlayer !== playerIndex) throw new Error('You do not have priority');
 
-          const cardIdx = player.hand.findIndex(c => c.instanceId === action.instanceId);
-          if (cardIdx === -1) throw new Error('Card not in hand');
-          const card = player.hand[cardIdx];
+          let isFromGraveyard = false;
+          let cardIdx = player.hand.findIndex(c => c.instanceId === action.instanceId);
+          
+          // Check graveyard if alternate cost is Flashback
+          if (cardIdx === -1 && action.alternateCostDetails?.altCostId === 'flashback') {
+            cardIdx = player.graveyard.findIndex(c => c.instanceId === action.instanceId);
+            if (cardIdx !== -1) isFromGraveyard = true;
+          }
+
+          if (cardIdx === -1) throw new Error('Card not found in hand (or graveyard for Flashback)');
+          const card = isFromGraveyard ? player.graveyard[cardIdx] : player.hand[cardIdx];
 
           const isLand = card.type_line?.includes('Land');
 
@@ -900,7 +921,8 @@ export class GameEngine {
             if (player.landsPlayedThisTurn >= player.maxLandsPerTurn)
               throw new Error('Max lands played this turn');
 
-            player.hand.splice(cardIdx, 1);
+            if (isFromGraveyard) player.graveyard.splice(cardIdx, 1);
+            else player.hand.splice(cardIdx, 1);
             player.landsPlayedThisTurn++;
             card.tapped = card.engineMetadata?.entersTapped || false;
             card.damage = 0;
@@ -938,7 +960,8 @@ export class GameEngine {
               this.payMana(player, card.mana_cost);
             }
 
-            player.hand.splice(cardIdx, 1);
+            if (isFromGraveyard) player.graveyard.splice(cardIdx, 1);
+            else player.hand.splice(cardIdx, 1);
 
             const isPermSpell = !card.type_line?.includes('Instant') && !card.type_line?.includes('Sorcery');
 
@@ -949,10 +972,26 @@ export class GameEngine {
               ownerIndex: playerIndex,
               targets: action.targets || [],
               isPermSpell,
+              isFlashback: isFromGraveyard && action.alternateCostDetails?.altCostId === 'flashback',
             };
             this.state.stack.push(stackEntry);
             this.state.stormCount++;
             this.addLog(`${player.name} casts ${card.name}. (on stack)`);
+
+            // Storm
+            if (card.engineMetadata?.spellEffects?.some(e => e.type === 'STORM')) {
+              const copies = this.state.stormCount - 1; // Exclude the spell itself
+              for (let i = 0; i < copies; i++) {
+                this.state.stack.push({
+                  instanceId: require('uuid').v4(),
+                  card: { ...card, name: `Copy of ${card.name}` },
+                  ownerIndex: playerIndex,
+                  targets: action.targets || [],
+                  isPermSpell,
+                });
+              }
+              if (copies > 0) this.addLog(`Storm copies ${card.name} ${copies} time(s).`);
+            }
 
             // Process cast triggers
             const isNonCreature = !card.type_line?.includes('Creature');
@@ -992,9 +1031,14 @@ export class GameEngine {
               this.resolveEffects(top.ownerIndex, card.engineMetadata.etbEffects, card.name, top.targets);
             }
           } else {
-            // Instant / Sorcery → goes to graveyard
-            ownerPlayer.graveyard.push(card);
-            this.addLog(`${card.name} resolves.`);
+            // Instant / Sorcery → goes to graveyard or exile
+            if (top.isFlashback) {
+              ownerPlayer.exile.push(card);
+              this.addLog(`${card.name} resolves and is exiled (Flashback).`);
+            } else {
+              ownerPlayer.graveyard.push(card);
+              this.addLog(`${card.name} resolves.`);
+            }
             if (card.engineMetadata?.spellEffects?.length > 0) {
               this.resolveEffects(top.ownerIndex, card.engineMetadata.spellEffects, card.name, top.targets);
             }
@@ -1100,6 +1144,20 @@ export class GameEngine {
             if (player.life <= ability.costAmount) throw new Error(`Not enough life (need >${ability.costAmount})`);
             player.life -= ability.costAmount;
             this.addLog(`${player.name} pays ${ability.costAmount} life.`);
+          } else if (ability.costType === 'LOYALTY') {
+            bfCard.counters = bfCard.counters || {};
+            // Assuming base loyalty is pulled from toughness string or similar, but for now just use what's there
+            const currentLoyalty = bfCard.counters.loyalty || parseInt(bfCard.loyalty || bfCard.toughness || 3);
+            const cost = ability.costAmount;
+            if (cost !== 'X' && currentLoyalty + cost < 0) {
+              throw new Error(`Not enough loyalty counters (has ${currentLoyalty}, needs ${Math.abs(cost)})`);
+            }
+            if (bfCard.loyaltyUsedThisTurn) {
+              throw new Error(`Already used a loyalty ability on ${bfCard.name} this turn`);
+            }
+            bfCard.counters.loyalty = currentLoyalty + (cost === 'X' ? 0 : cost);
+            bfCard.loyaltyUsedThisTurn = true;
+            this.addLog(`${player.name} uses ${ability.description} on ${bfCard.name}. (Loyalty now ${bfCard.counters.loyalty})`);
           } else if (ability.costType === 'MANA') {
             this.payMana(player, ability.cost);
           }

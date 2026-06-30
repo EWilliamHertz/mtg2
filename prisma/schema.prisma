@@ -1,0 +1,577 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── 1. Core User Identity ──────────────────────────────────────────────────
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  username      String    @unique
+  password      String
+  role          Role      @default(USER)
+  emailVerified DateTime?
+  verificationToken String?
+  
+  // Address & Payment
+  shippingName  String?
+  addressLine1  String?
+  addressLine2  String?
+  city          String?
+  state         String?
+  postalCode    String?
+  country       String?
+  paypalEmail   String?
+  bankIban      String?
+  
+  apiKey        String?   @unique
+  
+  // Relations
+  apiKeys       ApiKey[]
+  inventory     CardInstance[]
+  sealedInventory SealedInstance[]
+  decks         Deck[]
+  listings      MarketListing[]
+  posts         Post[]
+  comments      Comment[]
+  sentMessages     Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+  
+  postReactions    PostReaction[]
+  commentReactions CommentReaction[]
+  
+  buyerDeals    Deal[]    @relation("BuyerDeals")
+  sellerDeals   Deal[]    @relation("SellerDeals")
+  bidsPlaced    Bid[]     @relation("BidsPlaced")
+
+  guilds        Guild[]   @relation("GuildMembers")
+  ownedGuilds   Guild[]   @relation("GuildOwner")
+  
+  // Reputation
+  reviewsGiven    Review[] @relation("ReviewsGiven")
+  reviewsReceived Review[] @relation("ReviewsReceived")
+  reputationScore Float?   @default(0.0)
+  totalReviews    Int      @default(0)
+  
+  // Notifications
+  notifications   Notification[]
+
+  // Matches & Ratings
+  matchesAsPlayer1 Match[] @relation("Player1Matches")
+  matchesAsPlayer2 Match[] @relation("Player2Matches")
+  matchesWon       Match[] @relation("MatchWins")
+  ratings          PlayerRating[] @relation("UserRatings")
+
+  // Collection value tracking over time
+  collectionValueHistory CollectionValueHistory[]
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Guild {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?  @db.Text
+  isPrivate   Boolean  @default(false)
+  inviteCode  String?  @unique
+  imageUrl    String?
+  members     User[]   @relation("GuildMembers")
+  ownerId     String?
+  owner       User?    @relation("GuildOwner", fields: [ownerId], references: [id])
+  posts       Post[]
+  createdAt   DateTime @default(now())
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  
+  content   String   @db.Text
+  images    String[] // Array of ImgBB URLs
+  youtubeId String?  // Optional YouTube video ID
+  
+  guildId   String?
+  guild     Guild?   @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  isPinned  Boolean  @default(false)
+
+  likes     Int      @default(0) // Deprecated, use reactions
+  reactions PostReaction[]
+  comments  Comment[]
+  
+  createdAt DateTime @default(now())
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content   String   @db.Text
+  
+  parentId  String?
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
+  
+  reactions CommentReaction[]
+  
+  createdAt DateTime @default(now())
+}
+
+model PostReaction {
+  id        String   @id @default(cuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // "LIKE", "HEART", "FIRE", "LAUGH", "SAD"
+  createdAt DateTime @default(now())
+
+  @@unique([postId, userId])
+}
+
+model CommentReaction {
+  id        String   @id @default(cuid())
+  commentId String
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  createdAt DateTime @default(now())
+
+  @@unique([commentId, userId])
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+// ─── 2. Global Card Dictionary ──────────────────────────────────────────────
+// A cached reference of all possible cards across games to prevent redundant API calls.
+model CardReference {
+  id            String    @id @default(cuid())
+  game          GameType  // "MTG", "POKEMON", "ONE_PIECE"
+  
+  // Original API IDs
+  apiId         String    @unique // e.g. Scryfall ID, TCGDex ID
+  
+  name          String
+  imageUrl      String
+  setCode       String?
+  rarity        String?
+  price           Float?    // Average market price
+  foilPrice       Float?    // Foil / Holo price
+  reverseHoloPrice Float?   // Reverse Holo price
+  
+  // The actual JSON data from the API (oracle_text, colors, HP, abilities, etc.)
+  apiPayload    Json
+  
+  instances     CardInstance[]
+  priceHistory  PriceHistory[]
+}
+
+enum GameType {
+  MTG
+  MAGIC
+  POKEMON
+  ONE_PIECE
+  NARUTO
+  LORCANA
+  RIFTBOUND
+}
+
+// ─── Price History & Collection Value Tracking ──────────────────────────────
+model PriceHistory {
+  id              String        @id @default(cuid())
+  cardReferenceId String
+  cardReference   CardReference @relation(fields: [cardReferenceId], references: [id], onDelete: Cascade)
+  price           Float
+  source          String        @default("tcgcsv") // "tcgcsv", "scryfall", "manual"
+  recordedAt      DateTime      @default(now())
+
+  @@index([cardReferenceId, recordedAt])
+  @@index([recordedAt])
+}
+
+model CollectionValueHistory {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  totalValue  Float
+  cardCount   Int
+  recordedAt  DateTime @default(now())
+
+  @@index([userId, recordedAt])
+}
+
+// ─── 3. Player Inventory (Digital Binder) ──────────────────────────────────
+// Represents a UNIQUE physical/digital card owned by a specific user.
+model CardInstance {
+  id              String         @id @default(uuid())
+  ownerId         String
+  owner           User           @relation(fields: [ownerId], references: [id])
+  
+  cardReferenceId String
+  cardReference   CardReference  @relation(fields: [cardReferenceId], references: [id])
+  
+  condition       Condition      @default(NEAR_MINT)
+  isFoil          Boolean        @default(false)
+  isSigned        Boolean        @default(false)
+  signedByArtist  Boolean        @default(false)
+  signedByElse    Boolean        @default(false)
+  isAltered       Boolean        @default(false)
+  
+  // Game-specific conditions
+  isGraded        Boolean        @default(false)
+  isHolo          Boolean        @default(false)
+  isReverseHolo   Boolean        @default(false)
+  isManga         Boolean        @default(false)
+  
+  customImageUrl  String?
+  notes           String?        @db.Text
+  
+  deckId          String?
+  deck            Deck?          @relation(fields: [deckId], references: [id])
+
+  marketListing   MarketListing?
+  packageListingId String?
+  packageListing  MarketListing? @relation("PackageItems", fields: [packageListingId], references: [id])
+
+  acquiredAt      DateTime       @default(now())
+}
+
+enum Condition {
+  MINT
+  NEAR_MINT
+  LIGHTLY_PLAYED
+  MODERATELY_PLAYED
+  HEAVILY_PLAYED
+  DAMAGED
+}
+
+// ─── 4. The Global Marketplace & Deals ──────────────────────────────────────
+enum MarketListingType {
+  FIXED_PRICE
+  AUCTION
+}
+
+model MarketListing {
+  id              String       @id @default(cuid())
+  
+  sellerId        String
+  seller          User         @relation(fields: [sellerId], references: [id])
+  
+  cardInstanceId  String?      @unique
+  cardInstance    CardInstance? @relation(fields: [cardInstanceId], references: [id])
+  
+  // For packages/bundles
+  isPackage       Boolean      @default(false)
+  packageTitle    String?
+  packageDesc     String?
+  packageImageUrl String?
+  packageItems    CardInstance[] @relation("PackageItems")
+
+  type            MarketListingType @default(FIXED_PRICE)
+  price           Float        // Buy It Now price or Starting Bid
+  currentBid      Float?       // Only for auctions
+  auctionEndsAt   DateTime?    // Only for auctions
+
+  status          ListingStatus @default(ACTIVE)
+
+  deal            Deal?
+  bids            Bid[]
+
+  createdAt       DateTime     @default(now())
+}
+
+
+enum ListingStatus {
+  ACTIVE
+  IN_DEAL
+  SOLD
+  CANCELLED
+}
+
+model Deal {
+  id              String      @id @default(cuid())
+  
+  listingId       String      @unique
+  listing         MarketListing @relation(fields: [listingId], references: [id])
+  
+  buyerId         String
+  buyer           User        @relation("BuyerDeals", fields: [buyerId], references: [id])
+  
+  sellerId        String
+  seller          User        @relation("SellerDeals", fields: [sellerId], references: [id])
+  
+  price           Float
+  
+  // Shipping Integration
+  shippingProvider  String?
+  trackingNumber    String?
+  shippingLabelUrl  String?
+  
+  status          DealStatus  @default(PENDING_PAYMENT)
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  
+  review          Review?
+}
+
+enum DealStatus {
+  PENDING_PAYMENT
+  PAID
+  SHIPPED
+  COMPLETED
+  CANCELLED
+}
+
+// ─── 5. Arena Decks ────────────────────────────────────────────────────────
+model Deck {
+  id          String         @id @default(cuid())
+  name        String
+  game        GameType
+  
+  ownerId     String
+  owner       User           @relation(fields: [ownerId], references: [id])
+  
+  format      String?
+  isPublic    Boolean        @default(false)
+  
+  // Meta Deck Fields
+  isMeta      Boolean        @default(false)
+  metaAuthor  String?
+  metaWinRate String?
+
+  cards       Json?          // The parsed decklist data
+  
+  instances   CardInstance[] // Physical cards linked to this deck
+
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+// ─── 6. Direct Messaging (Chat) ────────────────────────────────────────────
+model Message {
+  id        String   @id @default(cuid())
+  
+  senderId  String
+  sender    User     @relation("SentMessages", fields: [senderId], references: [id])
+  
+  receiverId String?
+  receiver  User?     @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  
+  content   String   @db.Text
+  read      Boolean  @default(false)
+  
+  createdAt DateTime @default(now())
+}
+
+// ─── 7. Admin Shop / E-Commerce ────────────────────────────────────────────
+model Product {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?  @db.Text
+  price         Float
+  imageUrl      String?
+  images        String[] // Gallery of images
+  stripeProductId String?
+  stripePriceId String?
+  
+  // Dropshipping & Shipping
+  weight        Float    @default(0)
+  shippingPrice Float    @default(0)
+  notificationEmails String? @db.Text
+  isActive      Boolean  @default(true)
+  stock         Int      @default(0)
+  
+  orders        Order[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Order {
+  id              String   @id @default(cuid())
+  referenceCode   String   @unique
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id])
+  buyerEmail      String
+  buyerName       String?
+  shippingAddress String?  @db.Text
+  totalAmount     Float
+  status          String   @default("PENDING") // "PENDING", "PAID", "SHIPPED", "CANCELLED"
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ─── 8. Reputation & Reviews ───────────────────────────────────────────────
+model Review {
+  id          String   @id @default(cuid())
+  rating      Int      // 1 to 5 stars
+  comment     String?  @db.Text
+  
+  reviewerId  String
+  reviewer    User     @relation("ReviewsGiven", fields: [reviewerId], references: [id])
+  
+  revieweeId  String
+  reviewee    User     @relation("ReviewsReceived", fields: [revieweeId], references: [id])
+  
+  dealId      String?  @unique
+  deal        Deal?    @relation(fields: [dealId], references: [id])
+  
+  createdAt   DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type      String   // 'TRADE_OFFER', 'GUILD_INVITE', 'COMMENT', 'LIKE', etc.
+  content   String   
+  link      String?  
+  isRead    Boolean  @default(false)
+  
+  createdAt DateTime @default(now())
+}
+
+// ─── 9. Sealed Product Tracker ──────────────────────────────────────────────
+model SealedReference {
+  id            String    @id @default(cuid())
+  game          GameType
+  name          String
+  type          String    // e.g. "BOOSTER_BOX", "ELITE_TRAINER_BOX", "BLISTER"
+  setCode       String?
+  releaseDate   DateTime?
+  price         Float?    // Average market price
+  imageUrl      String?
+  apiPayload    Json?     // External API data if fetched
+
+  instances     SealedInstance[]
+}
+
+model SealedInstance {
+  id                String          @id @default(uuid())
+  ownerId           String
+  owner             User            @relation(fields: [ownerId], references: [id])
+  
+  sealedReferenceId String
+  sealedReference   SealedReference @relation(fields: [sealedReferenceId], references: [id])
+  
+  condition         String          @default("FACTORY_SEALED") // e.g. "FACTORY_SEALED", "DAMAGED_BOX"
+  purchasePrice     Float?          // How much the user paid for it
+  notes             String?         @db.Text
+  customImageUrl    String?
+  
+  acquiredAt        DateTime        @default(now())
+}
+
+model ApiKey {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  game      GameType
+  hits      Int      @default(0)
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([userId, game]) // A user can only have one API key per game
+}
+
+model Giveaway {
+  id          String   @id @default(cuid())
+  title       String
+  description String?  @db.Text
+  imageUrl    String?
+  tag         String?
+  expiresAt   DateTime
+  isActive    Boolean  @default(true)
+  
+  // Criteria targets
+  cardsRequired   Int @default(0)
+  decksRequired   Int @default(0)
+  tradesRequired  Int @default(0)
+  invitesRequired Int @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ─── Euryx Pokemon Client Integration (shared DB) ──────────────────────────
+// EuryxTournament: legacy table preserved for the Euryx Pokemon client.
+// User identity & decks are now unified via Hatake's User and Deck models.
+model EuryxTournament {
+  id             String   @id @default(cuid())
+  name           String
+  format         String
+  status         String
+  startsAt       DateTime
+  registeredCnt  Int      @default(0)
+  capacity       Int      @default(64)
+  prizePool      String?
+  region         String?
+  bannerImageUrl String?
+  description    String?  @db.Text
+  createdAt      DateTime @default(now())
+}
+
+// ─── 10. Bidding ──────────────────────────────────────────────────────────
+model Bid {
+  id          String   @id @default(cuid())
+  amount      Float
+  
+  listingId   String
+  listing     MarketListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  
+  bidderId    String
+  bidder      User     @relation("BidsPlaced", fields: [bidderId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+}
+
+// ─── 10. Match History & Ratings ─────────────────────────────────────────────
+model Match {
+  id          String   @id @default(cuid())
+  game        GameType
+  
+  player1Id   String
+  player1     User     @relation("Player1Matches", fields: [player1Id], references: [id])
+  player2Id   String
+  player2     User     @relation("Player2Matches", fields: [player2Id], references: [id])
+  
+  winnerId    String?
+  winner      User?    @relation("MatchWins", fields: [winnerId], references: [id])
+  
+  // Elo rating adjustments
+  player1EloChange Float @default(0)
+  player2EloChange Float @default(0)
+  
+  durationSeconds Int?
+  
+  createdAt   DateTime @default(now())
+}
+
+model PlayerRating {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation("UserRatings", fields: [userId], references: [id])
+  game        GameType
+  elo         Float    @default(1200)
+  matchesPlayed Int    @default(0)
+  wins        Int      @default(0)
+  losses      Int      @default(0)
+  
+  @@unique([userId, game])
+}
