@@ -8,6 +8,16 @@ const nextConfig = {
       { protocol: 'https', hostname: 'svgs.scryfall.io' },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: '/',
+        destination: '/ouyrie',
+        basePath: false,
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
