@@ -31,8 +31,15 @@ export async function middleware(request) {
     return NextResponse.next();
   }
 
+  // Bypass auth in local development if no cookie is present so you don't get trapped
+  if (!isAuthenticated && process.env.NODE_ENV === 'development') {
+    isAuthenticated = true; // Mock auth for local testing without Hatake SSO
+  }
+
   if (!isAuthenticated) {
-    return NextResponse.redirect(HATAKE_LOGIN_URL);
+    // Pass the redirectUrl so Hatake can send us back!
+    const returnUrl = encodeURIComponent(request.url);
+    return NextResponse.redirect(`${HATAKE_LOGIN_URL}?redirectUrl=${returnUrl}`);
   }
 
   // If authenticated, bypass legacy menus and mount core Game Board (play)
@@ -43,11 +50,8 @@ export async function middleware(request) {
   ];
 
   if (legacyMenus.includes(pathname)) {
-    const forwardedHost = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
-    const isProxied = forwardedHost.includes("hatake.social") || forwardedHost.includes("localhost");
-    const targetPath = isProxied ? "/ouyrie/play" : "/play";
-    
-    return NextResponse.redirect(new URL(targetPath, request.url));
+    // With Next.js basePath configured, we can just redirect to /play
+    return NextResponse.redirect(new URL("/play", request.url));
   }
 
   return NextResponse.next();

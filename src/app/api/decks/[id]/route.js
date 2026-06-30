@@ -1,4 +1,4 @@
-import pool from '../../../../lib/db.js';
+import prisma from '../../../../lib/db.js';
 import { getUserFromRequest } from '../../../../lib/auth.js';
 
 export async function GET(request, { params }) {
@@ -6,29 +6,38 @@ export async function GET(request, { params }) {
   const user = getUserFromRequest(request);
 
   try {
-    const deckResult = await pool.query('SELECT * FROM decks WHERE id = $1', [id]);
-    if (deckResult.rows.length === 0) {
+    const deck = await prisma.deck.findUnique({
+      where: { id }
+    });
+    if (!deck) {
       return Response.json({ error: 'Deck not found' }, { status: 404 });
     }
     
-    const deck = deckResult.rows[0];
-    
     // Check ownership if user is logged in
-    if (user && deck.user_id !== user.id) {
+    if (user && deck.ownerId !== user.id) {
       return Response.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    const cardsResult = await pool.query(
-      `SELECT c.*, dc.quantity, dc.is_sideboard 
-       FROM deck_cards dc 
-       JOIN cards c ON dc.card_id = c.scryfall_id 
-       WHERE dc.deck_id = $1`,
-      [id]
-    );
+    const cardsArray = [];
+    const parsedCards = typeof deck.cards === 'string' ? JSON.parse(deck.cards) : (deck.cards || []);
+
+    for (const entry of parsedCards) {
+      const cardRef = await prisma.cardReference.findUnique({
+        where: { apiId: entry.cardId }
+      });
+      if (cardRef) {
+        cardsArray.push({
+          ...cardRef.apiPayload,
+          scryfall_id: cardRef.apiPayload.id,
+          quantity: entry.quantity,
+          is_sideboard: entry.is_sideboard
+        });
+      }
+    }
 
     return Response.json({
       deck,
-      cards: cardsResult.rows
+      cards: cardsArray
     });
   } catch (error) {
     console.error(error);
@@ -45,35 +54,32 @@ export async function PUT(request, { params }) {
   }
 
   try {
-    // Verify ownership
-    const deckResult = await pool.query('SELECT user_id FROM decks WHERE id = $1', [id]);
-    if (deckResult.rows.length === 0) {
+    const deck = await prisma.deck.findUnique({ where: { id } });
+    if (!deck) {
       return Response.json({ error: 'Deck not found' }, { status: 404 });
     }
-    
-    if (deckResult.rows[0].user_id !== user.id) {
+    if (deck.ownerId !== user.id) {
       return Response.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
     const body = await request.json();
     const { name, format } = body;
 
-    const result = await pool.query(
-      'UPDATE decks SET name = COALESCE($1, name), format = COALESCE($2, format), updated_at = NOW() WHERE id = $3 RETURNING *',
-      [name, format, id]
-    );
+    const cards = body.cards ? Object.values(body.cards).map((entry) => ({
+      cardId: entry.cardId || entry.id,
+      quantity: entry.quantity,
+      is_sideboard: entry.is_sideboard || false
+    })) : undefined;
 
-    if (body.cards) {
-      await pool.query('DELETE FROM deck_cards WHERE deck_id = $1', [id]);
-      for (const [key, entry] of Object.entries(body.cards)) {
-        await pool.query(
-          'INSERT INTO deck_cards (deck_id, card_id, quantity, is_sideboard) VALUES ($1, $2, $3, $4)',
-          [id, entry.cardId || key, entry.quantity, entry.is_sideboard || false]
-        );
+    const updatedDeck = await prisma.deck.update({
+      where: { id },
+      data: {
+        name: name || undefined,
+        cards: cards !== undefined ? cards : undefined
       }
-    }
+    });
 
-    return Response.json(result.rows[0]);
+    return Response.json(updatedDeck);
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Internal Server Error' }, { status: 500 });
@@ -89,17 +95,15 @@ export async function DELETE(request, { params }) {
   }
 
   try {
-    // Verify ownership
-    const deckResult = await pool.query('SELECT user_id FROM decks WHERE id = $1', [id]);
-    if (deckResult.rows.length === 0) {
+    const deck = await prisma.deck.findUnique({ where: { id } });
+    if (!deck) {
       return Response.json({ error: 'Deck not found' }, { status: 404 });
     }
-    
-    if (deckResult.rows[0].user_id !== user.id) {
+    if (deck.ownerId !== user.id) {
       return Response.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    const result = await pool.query('DELETE FROM decks WHERE id = $1 RETURNING *', [id]);
+    await prisma.deck.delete({ where: { id } });
     return Response.json({ message: 'Deck deleted successfully' });
   } catch (error) {
     console.error(error);
